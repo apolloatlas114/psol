@@ -148,6 +148,14 @@ io.on("connection", (socket) => {
   });
 });
 
+
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+
+
 // ✅ Lade Game-Logik (NACHDEM `io` läuft)
 import("./game/gameLogic.js")
   .then(() => console.log("✅ gameLogic.js loaded successfully"))
