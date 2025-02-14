@@ -163,9 +163,12 @@ mongoose
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-export { io, server };
 
 
 // ✅ Server starten
 const PORT = process.env.PORT || 5000;
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 server.listen(PORT, () => console.log(`🚀 Server läuft auf http://localhost:${PORT}`));
