@@ -1,0 +1,93 @@
+@font-face {
+    font-family: 'Lazer84';
+    src: url('fonts/Lazer84.ttf') format('truetype');
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background: black;
+    height: 100vh;
+    width: 100vw;
+    font-family: Arial, sans-serif;
+}
+
+canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 1;
+    background: transparent;
+}
+
+
+/* HUD Styling */
+.hud {
+    position: absolute;
+    color: #FF0099; /* Exakte Farbe aus Lazer84 */
+    font-family: 'Lazer84', sans-serif;
+    font-size: 32px;
+    text-shadow: -3px 3px 0px #230047, -6px 6px 0px #120023;
+    text-transform: uppercase;
+}
+
+/* Score (unten links) */
+#score {
+    bottom: 20px;
+    left: 20px;
+    position: absolute;
+}
+
+/* Timer (oben links) */
+#timer {
+    top: 20px;
+    left: 20px;
+    position: absolute;
+}
+
+
+
+#hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10; /* Muss über dem Canvas sein */
+    pointer-events: none; /* Verhindert, dass das HUD Klicks blockiert */
+}
+
+
+
+
+
+
+/* Pool Money (unten rechts) */
+#poolMoney {
+    bottom: 20px;
+    right: 20px;
+    position: absolute;
+}
+
+/* Leaderboard (oben rechts) */
+#leaderboard {
+    top: 20px;
+    right: 20px;
+    position: absolute;
+    text-align: right;
+}
+
+/* Leaderboard Spieler-Namen */
+#leaderboard-list {
+    font-family: 'OldComputer', sans-serif;
+    font-size: 24px;
+    color: white;
+}
+
+/* Spezielles Old-School Font */
+@font-face {
+    font-family: 'OldComputer';
+    src: url('fonts/old_computer.ttf') format('truetype');
+}
