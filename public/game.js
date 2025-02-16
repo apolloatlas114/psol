@@ -42,17 +42,29 @@ socket.addEventListener("open", () => {
 socket.on("playerData", (data) => {
     console.log("🔄 Received player data:", data);
 
-    // Add all existing players from server
     Object.values(data.players).forEach((playerInfo) => {
+        if (playerInfo.id === socket.id) return;  // ✅ Skip creating your own player
+        if (players.some(player => player.playerId === playerInfo.id)) return;  // ✅ Prevent duplicates
+        
         createMultiplayerPlayer(playerInfo.id, playerInfo.skin, new THREE.Vector3(playerInfo.x, 0, playerInfo.z));
     });
 });
 
+
+
+
 // When a new player joins
 socket.on("newPlayer", (playerInfo) => {
     console.log(`🎮 New player joined: ${playerInfo.name}`);
-    createMultiplayerPlayer(playerInfo.id, playerInfo.skin, new THREE.Vector3(playerInfo.x, 0, playerInfo.z));
+
+    // ✅ FIX: Do NOT create yourself again
+    if (playerInfo.id !== socket.id) {
+        createMultiplayerPlayer(playerInfo.id, getRandomSkin(), new THREE.Vector3(playerInfo.x, 0, playerInfo.z));
+    } else {
+        console.warn("⚠️ Skipping self-spawn to avoid duplicate.");
+    }
 });
+
 
 
 
@@ -791,8 +803,18 @@ function checkFoodCollision() {
                 foodPos.lerp(player.position, 0.5);
 
                 if (distance < player.size * 1.3) {
-                    let growthFactor = 1 / (1 + player.size * 0.01);
-                    player.size += growthFactor;
+    let growthFactor = 1 / (1 + player.size * 0.01);
+
+    // ✅ Only increase size if the food still exists
+    if (foodPositions.has(key)) {
+        player.size += growthFactor;
+
+        // 🔴 Remove food after eating
+        foodMesh.setMatrixAt(key, new THREE.Matrix4().setPosition(99999, 99999, 99999));
+        foodPositions.delete(key);
+    }
+}
+
                     moveSpeed = Math.max(3, baseSpeed - (player.size / 20));
 
                     // ✅ Remove the food first
@@ -1205,7 +1227,7 @@ function getRandomSkin() {
 
 
 function createPlayer(size, position, isSplit = false) {
-    console.log('📌 Erstelle Spieler mit Position:', position);
+    console.log('📌 Creating player at position:', position);
 
     const playerMaterial = new THREE.MeshStandardMaterial({
         map: playerTexture,
@@ -1220,25 +1242,46 @@ function createPlayer(size, position, isSplit = false) {
     const scaleFactor = 2.5;
     const playerGeometry = new THREE.PlaneGeometry(size * scaleFactor, size * scaleFactor);
 
-    // ✅ Rotate the plane so it's FLAT on the ground
     const player = new THREE.Mesh(playerGeometry, playerMaterial);
     player.position.copy(position);
     player.position.y += 2; // Keep it slightly above the ground
     player.size = size;
+    player.isSplit = isSplit; // ✅ Corrected Position
     
-    playerMaterial.map.flipY = false;  // ✅ Prevents upside-down texture
-    playerMaterial.needsUpdate = true; // ✅ Apply the texture change
+    playerMaterial.map.flipY = false;  
+    playerMaterial.needsUpdate = true;
 
-    // ✅ This rotation makes the player **lie flat** on the ground
-    player.rotation.x = -Math.PI / 2;  // Rotate 90 degrees
+    player.rotation.x = -Math.PI / 2;  
 
     scene.add(player);
     players.push(player);
-    return player;  
+    
+    return player;  // ✅ Now correctly inside the function
 }
 
 
+
     
+function cleanUpGhostPlayers() {
+    players = players.filter(player => player.playerId !== undefined); // Keep only valid players
+}
+
+// Call this function after creating your own player
+socket.on("connect", () => {
+    console.log("✅ Connected to server!");
+    socket.emit("joinGame");
+
+    if (!players.some(player => player.isLocalPlayer)) {
+    console.log("✅ Creating YOUR main player.");
+    const myPlayer = createPlayer(40, new THREE.Vector3(0, 0, 0));
+    myPlayer.isLocalPlayer = true;  // ✅ Mark your player to prevent duplicates
+} else {
+    console.warn("⚠️ Player already exists, skipping self-spawn.");
+}
+
+        cleanUpGhostPlayers(); // ✅ Remove fake players
+    }
+});
 
 
 
@@ -1247,7 +1290,12 @@ function createPlayer(size, position, isSplit = false) {
 
 
 function createMultiplayerPlayer(id, skinPath, position) {
-    if (players.some(player => player.playerId === id)) return; // ✅ Prevent duplicate players
+    if (id === socket.id) return; // ✅ Ignore self
+    if (players.some(player => player.playerId === id)) {
+        console.warn(`⚠️ Player ${id} already exists, skipping duplicate spawn.`);
+        return; // Prevent duplicates
+    }
+
 
     const playerMaterial = new THREE.MeshStandardMaterial({
         map: textureLoader.load(skinPath),
@@ -1258,16 +1306,10 @@ function createMultiplayerPlayer(id, skinPath, position) {
 
     const playerGeometry = new THREE.PlaneGeometry(40, 40);
     const player = new THREE.Mesh(playerGeometry, playerMaterial);
-player.rotation.x = -Math.PI / 2;  // ✅ Ensure multiplayer players are also lying flat
-    
-    player.rotation.x = -Math.PI / 2;  // ✅ This makes the player lie flat
-
-    playerMaterial.map.flipY = false;
-    playerMaterial.needsUpdate = true;
-
+    player.rotation.x = -Math.PI / 2;  
 
     player.position.copy(position);
-    player.position.y = Math.max(player.position.y, -30 + 20); // ✅ Ensure Above Ground
+    player.position.y = Math.max(player.position.y, -30 + 20); 
     player.size = 40;
     player.playerId = id;
     
@@ -1287,13 +1329,8 @@ player.rotation.x = -Math.PI / 2;  // ✅ Ensure multiplayer players are also ly
 
 
 
-    player.isSplit = isSplit;
-    player.renderOrder = -1;
 
-    scene.add(player);
-    players.push(player);
-    return player;
-}
+
 
 
 
@@ -1312,9 +1349,14 @@ socket.on("connect", () => {
 
 
 // ✅ Spieler wird NUR EINMAL erstellt, nicht in der Funktion selbst
-if (players.length === 0) { 
-    createPlayer(40, new THREE.Vector3(0, 0, 0)); 
+if (!players.some(player => player.isLocalPlayer)) {
+    console.log("✅ Creating YOUR main player.");
+    const myPlayer = createPlayer(40, new THREE.Vector3(0, 0, 0));
+    myPlayer.isLocalPlayer = true;  // ✅ Mark your player to prevent duplicates
+} else {
+    console.warn("⚠️ Player already exists, skipping self-spawn.");
 }
+
 
 
 // ✅ Fenster-Resize-Handler
