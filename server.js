@@ -25,8 +25,7 @@ const io = new Server(server, {
 // Middleware & Static Files
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public"), { extensions: ["html", "css", "js"] })); // ✅ FIXED SYNTAX
-
+app.use(express.static(path.join(__dirname, "public"), { extensions: ["html", "css", "js"] }));
 
 // Rate Limiting for Security
 const apiLimiter = rateLimit({
@@ -63,9 +62,6 @@ let leaderboard = [];
 let poolMoney = 1000000;
 let gameTimer = 20 * 60; // 20 minutes in seconds
 
-
-
-
 // Start Game Timer & Send Updates
 function startGameTimer() {
     const timer = setInterval(() => {
@@ -93,17 +89,14 @@ const randomNames = ["Shadow", "NeonWarrior", "Hyper", "CyberGhost", "PixelFreak
 let connectedPlayers = {};
 
 // WebSocket Events for Multiplayer
-
-
 io.on("connection", (socket) => {
     console.log("⚡ Player connected:", socket.id);
 
-    // Assign a unique name
     function getRandomName() {
         let name;
         do {
             name = randomNames[Math.floor(Math.random() * randomNames.length)];
-        } while (Object.values(connectedPlayers).some(p => p.name === name)); 
+        } while (Object.values(connectedPlayers).some(p => p.name === name));
         return name;
     }
 
@@ -121,13 +114,9 @@ io.on("connection", (socket) => {
         skin: randomSkin
     };
 
-    // Send player data
     socket.emit("playerData", { id: socket.id, players: connectedPlayers });
-
-    // Broadcast new player
     io.emit("newPlayer", connectedPlayers[socket.id]);
 
-    // Handle movement updates
     socket.on("updatePosition", (data) => {
         if (connectedPlayers[socket.id]) {
             connectedPlayers[socket.id].x = data.x;
@@ -136,7 +125,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Handle score updates
     socket.on("updateScore", (score) => {
         if (connectedPlayers[socket.id]) {
             connectedPlayers[socket.id].score = score;
@@ -144,7 +132,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Handle disconnection
     socket.on("disconnect", () => {
         console.log("❌ Player disconnected:", socket.id);
         delete connectedPlayers[socket.id];
@@ -152,20 +139,6 @@ io.on("connection", (socket) => {
     });
 });
 
-
-
- 
-
-    // Handle movement updates
-    socket.on("updatePosition", (data) => {
-        if (connectedPlayers[socket.id]) {
-            connectedPlayers[socket.id].x = data.x;
-            connectedPlayers[socket.id].z = data.z;
-            io.emit("updatePosition", { id: socket.id, x: data.x, z: data.z });
-        }
-    });
-
-    // Handle score updates
 function updateLeaderboard(playerID, playerName, score) {
     leaderboard = leaderboard.filter((p) => p.id !== playerID);
     leaderboard.push({ id: playerID, name: playerName, score: score });
@@ -173,16 +146,6 @@ function updateLeaderboard(playerID, playerName, score) {
     leaderboard = leaderboard.slice(0, 10);
     io.emit("updateLeaderboard", leaderboard);
 }
-
-
-
-    // Handle disconnection
-    socket.on("disconnect", () => {
-        console.log("❌ Player disconnected:", socket.id);
-        delete connectedPlayers[socket.id];
-        io.emit("removePlayer", socket.id);
-    });
-});
 
 // Express Routes
 app.get("/", (req, res) => {
@@ -194,7 +157,7 @@ mongoose
     .connect(process.env.MONGO_URI, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 5000, // Timeout after 5 sec for better stability
+        serverSelectionTimeoutMS: 5000,
     })
     .then(() => console.log("✅ Connected to MongoDB"))
     .catch((err) => console.error("❌ MongoDB connection error:", err));

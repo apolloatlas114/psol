@@ -1203,36 +1203,40 @@ function getRandomSkin() {
 
 
 
-
 function createPlayer(size, position, isSplit = false) {
     console.log('📌 Erstelle Spieler mit Position:', position);
 
     const playerMaterial = new THREE.MeshStandardMaterial({
         map: playerTexture,
         transparent: true,
-        metalness: 0.1,  // ✅ Lower metallic effect to keep texture original
-        roughness: 0.3,  // ✅ Balanced shine
-        emissive: new THREE.Color(0, 0, 0), // ✅ No blue tint
-        emissiveIntensity: 0, // ✅ Remove unwanted glow
-        side: THREE.DoubleSide, // Ensure both sides of the plane are visible
+        metalness: 0.1,  
+        roughness: 0.3,  
+        emissive: new THREE.Color(0, 0, 0), 
+        emissiveIntensity: 0, 
+        side: THREE.DoubleSide, 
     });
 
     const scaleFactor = 2.5;
     const playerGeometry = new THREE.PlaneGeometry(size * scaleFactor, size * scaleFactor);
 
-    // ✅ Center the geometry based on the image's perceived center
-    // Assuming your image's center is at (0, size * 0.75)
-    // You might need to adjust 0.75 to match your specific image
-    playerGeometry.translate(0, size * 0.75, 0); // Adjust this value
-
+    // ✅ Rotate the plane so it's FLAT on the ground
     const player = new THREE.Mesh(playerGeometry, playerMaterial);
-
     player.position.copy(position);
-    player.position.y += 2; // ✅ Move player slightly up to avoid clipping
-
+    player.position.y += 2; // Keep it slightly above the ground
     player.size = size;
-    player.rotation.x = 0;  // ✅ Player stands correctly, not flat
-    //  // ✅ Ensures player always faces the camera
+    
+    playerMaterial.map.flipY = false;  // ✅ Prevents upside-down texture
+    playerMaterial.needsUpdate = true; // ✅ Apply the texture change
+
+
+    // ✅ This rotation makes the player **lie flat** on the ground
+    player.rotation.x = -Math.PI / 2;  // Rotate 90 degrees
+
+    scene.add(player);
+    players.push(player);
+    return player;
+}
+
     
 
 
@@ -1253,6 +1257,12 @@ function createMultiplayerPlayer(id, skinPath, position) {
 
     const playerGeometry = new THREE.PlaneGeometry(40, 40);
     const player = new THREE.Mesh(playerGeometry, playerMaterial);
+player.rotation.x = -Math.PI / 2;  // ✅ Ensure multiplayer players are also lying flat
+    
+
+    playerMaterial.map.flipY = false;
+    playerMaterial.needsUpdate = true;
+
 
     player.position.copy(position);
     player.position.y = Math.max(player.position.y, -30 + 20); // ✅ Ensure Above Ground
