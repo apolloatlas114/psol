@@ -6,64 +6,10 @@ const mixers = [];  // ✅ Stores animation mixers for monsters
 const clock = new THREE.Clock(); // ✅ Define the clock at the top of your game.js
 
 
-const socket = io("wss://psolgame-e77454844bbd.herokuapp.com/", {
-    transports: ["websocket"]
-});
-
-
-socket.on("connect", () => {
-    console.log("✅ Connected to server!");
-    socket.emit("joinGame"); // Request to join game
-});
-
-
-socket.addEventListener("error", (error) => {
-    console.error("❌ WebSocket Error:", error);
-});
-
-
-
-    socket.on("updateLeaderboard", (leaderboard) => {
-    let leaderboardElement = document.getElementById("leaderboard-list");
-    if (leaderboardElement) {
-        leaderboardElement.innerHTML = leaderboard
-            .map((player, index) => `<li>#${index + 1}: ${player.name} - ${Math.floor(player.score)}</li>`)
-            .join("");
-    }
-});
-
-
-
-socket.addEventListener("open", () => {
-    console.log("✅ Connected to WebSocket Server");
-    socket.send(JSON.stringify({ type: "joinGame" })); // Notify server to join lobby
-});
-
-socket.on("playerData", (data) => {
-    console.log("🔄 Received player data:", data);
-
-    Object.values(data.players).forEach((playerInfo) => {
-        if (playerInfo.id === socket.id) return;  // ✅ Skip creating your own player
-        if (players.some(player => player.playerId === playerInfo.id)) return;  // ✅ Prevent duplicates
-        
-        createMultiplayerPlayer(playerInfo.id, playerInfo.skin, new THREE.Vector3(playerInfo.x, 0, playerInfo.z));
-    });
-});
 
 
 
 
-// When a new player joins
-socket.on("newPlayer", (playerInfo) => {
-    console.log(`🎮 New player joined: ${playerInfo.name}`);
-
-    // ✅ FIX: Do NOT create yourself again
-    if (playerInfo.id !== socket.id) {
-        createMultiplayerPlayer(playerInfo.id, getRandomSkin(), new THREE.Vector3(playerInfo.x, 0, playerInfo.z));
-    } else {
-        console.warn("⚠️ Skipping self-spawn to avoid duplicate.");
-    }
-});
 
 
 
@@ -803,18 +749,8 @@ function checkFoodCollision() {
                 foodPos.lerp(player.position, 0.5);
 
                 if (distance < player.size * 1.3) {
-    let growthFactor = 1 / (1 + player.size * 0.01);
-
-    // ✅ Only increase size if the food still exists
-    if (foodPositions.has(key)) {
-        player.size += growthFactor;
-
-        // 🔴 Remove food after eating
-        foodMesh.setMatrixAt(key, new THREE.Matrix4().setPosition(99999, 99999, 99999));
-        foodPositions.delete(key);
-    }
-}
-
+                    let growthFactor = 1 / (1 + player.size * 0.01);
+                    player.size += growthFactor;
                     moveSpeed = Math.max(3, baseSpeed - (player.size / 20));
 
                     // ✅ Remove the food first
@@ -955,22 +891,6 @@ function checkProjectileCollision() {
     }
 }
 
-
-setInterval(() => {
-    if (players.length > 0) {
-        socket.emit("updatePosition", {
-            id: socket.id,
-            x: players[0].position.x,
-            z: players[0].position.z
-        });
-    }
-}, 50); // Sends movement updates every 50ms
-
-
-
-
-
-
 // ✅ Animation Loop (mit HUD-Update)
 // ✅ Animation Loop (No Movement Freeze)
 function animate() {
@@ -1028,21 +948,6 @@ function animate() {
         mouseIsMoving = false;
     }
 }
-
-   
-
- 
-
-
-
-socket.on("updatePosition", (data) => {
-    let player = players.find(p => p.playerId === data.id);
-    if (player) {
-        player.position.set(data.x, player.position.y, data.z);
-    }
-});
-
-
 
 
 
@@ -1169,7 +1074,13 @@ function updateCamera() {
     let seconds = remainingTime % 60;
     document.getElementById('timer').innerText = `Time: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
-
+    let leaderboardElement = document.getElementById('leaderboard-list');
+    if (leaderboardElement) {
+        let sortedPlayers = players.slice().sort((a, b) => b.size - a.size).slice(0, 10);
+        leaderboardElement.innerHTML = sortedPlayers.map((player, index) =>
+            `<li>#${index + 1}: Score ${Math.floor(player.size)}</li>`
+        ).join('');
+    }
 
 
 
@@ -1210,154 +1121,53 @@ document.addEventListener('keydown', (event) => {
 
 
 
-function getRandomSkin() {
-    const skins = [
-        "textures/playerSkin1.png",
-        "textures/playerSkin4.png",
-        "textures/playerSkin5.png",
-        "textures/playerSkin14.png",
-    ];
-    return skins[Math.floor(Math.random() * skins.length)];  // ✅ Correct return
-}
-
-
-
-
-
-
-
 function createPlayer(size, position, isSplit = false) {
-    console.log('📌 Creating player at position:', position);
+    console.log('📌 Erstelle Spieler mit Position:', position);
 
     const playerMaterial = new THREE.MeshStandardMaterial({
         map: playerTexture,
         transparent: true,
-        metalness: 0.1,  
-        roughness: 0.3,  
-        emissive: new THREE.Color(0, 0, 0), 
-        emissiveIntensity: 0, 
-        side: THREE.DoubleSide, 
+        metalness: 0.1,  // ✅ Lower metallic effect to keep texture original
+        roughness: 0.3,  // ✅ Balanced shine
+        emissive: new THREE.Color(0, 0, 0), // ✅ No blue tint
+        emissiveIntensity: 0, // ✅ Remove unwanted glow
+        side: THREE.DoubleSide, // Ensure both sides of the plane are visible
     });
 
     const scaleFactor = 2.5;
     const playerGeometry = new THREE.PlaneGeometry(size * scaleFactor, size * scaleFactor);
 
+    // ✅ Center the geometry based on the image's perceived center
+    // Assuming your image's center is at (0, size * 0.75)
+    // You might need to adjust 0.75 to match your specific image
+    playerGeometry.translate(0, size * 0.75, 0); // Adjust this value
+
     const player = new THREE.Mesh(playerGeometry, playerMaterial);
+
     player.position.copy(position);
-    player.position.y += 2; // Keep it slightly above the ground
+    player.position.y += 2; // ✅ Move player slightly up to avoid clipping
+
     player.size = size;
-    player.isSplit = isSplit; // ✅ Corrected Position
-    
-    playerMaterial.map.flipY = false;  
-    playerMaterial.needsUpdate = true;
+    player.rotation.x = -Math.PI / 2;
 
-    player.rotation.x = -Math.PI / 2;  
+    //  // ✅ Ensures player always faces the camera
+    
+
+    player.isSplit = isSplit;
+    player.renderOrder = -1;
 
     scene.add(player);
     players.push(player);
-    
-    return player;  // ✅ Now correctly inside the function
+    return player;
 }
 
 
-
-    
-function cleanUpGhostPlayers() {
-    players = players.filter(player => player.playerId !== undefined); // Keep only valid players
-}
-
-// Call this function after creating your own player
-socket.on("connect", () => {
-    console.log("✅ Connected to server!");
-    socket.emit("joinGame");
-
-    if (!players.some(player => player.isLocalPlayer)) {
-    console.log("✅ Creating YOUR main player.");
-    const myPlayer = createPlayer(40, new THREE.Vector3(0, 0, 0));
-    myPlayer.isLocalPlayer = true;  // ✅ Mark your player to prevent duplicates
-} else {
-    console.warn("⚠️ Player already exists, skipping self-spawn.");
-}
-
-        cleanUpGhostPlayers(); // ✅ Remove fake players
-    }
-});
-
-
-
-
-
-
-
-function createMultiplayerPlayer(id, skinPath, position) {
-    if (id === socket.id) return; // ✅ Ignore self
-    if (players.some(player => player.playerId === id)) {
-        console.warn(`⚠️ Player ${id} already exists, skipping duplicate spawn.`);
-        return; // Prevent duplicates
-    }
-
-
-    const playerMaterial = new THREE.MeshStandardMaterial({
-        map: textureLoader.load(skinPath),
-        transparent: true,
-        metalness: 0.1,
-        roughness: 0.3
-    });
-
-    const playerGeometry = new THREE.PlaneGeometry(40, 40);
-    const player = new THREE.Mesh(playerGeometry, playerMaterial);
-    player.rotation.x = -Math.PI / 2;  
-
-    player.position.copy(position);
-    player.position.y = Math.max(player.position.y, -30 + 20); 
-    player.size = 40;
-    player.playerId = id;
-    
-    scene.add(player);
-    players.push(player);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-socket.on("connect", () => {
-    console.log("✅ Connected to server!");
-
-    socket.emit("joinGame"); // Request to join game
-
-    // ✅ Ensure the player is created only ONCE
-    if (players.length === 0) {
-        createPlayer(40, new THREE.Vector3(0, 0, 0));
-    }
-});
 
 
 
 
 // ✅ Spieler wird NUR EINMAL erstellt, nicht in der Funktion selbst
-if (!players.some(player => player.isLocalPlayer)) {
-    console.log("✅ Creating YOUR main player.");
-    const myPlayer = createPlayer(40, new THREE.Vector3(0, 0, 0));
-    myPlayer.isLocalPlayer = true;  // ✅ Mark your player to prevent duplicates
-} else {
-    console.warn("⚠️ Player already exists, skipping self-spawn.");
-}
-
-
+createPlayer(40, new THREE.Vector3(0, 40, 0));
 
 // ✅ Fenster-Resize-Handler
 window.addEventListener('resize', () => {
