@@ -6,7 +6,9 @@ const mixers = [];  // ✅ Stores animation mixers for monsters
 const clock = new THREE.Clock(); // ✅ Define the clock at the top of your game.js
 
 
-const socket = io("https://psolgame-e77454844bbd.herokuapp.com/"); // Change to your actual Heroku URL
+const socket = io("wss://psolgame-e77454844bbd.herokuapp.com/", {
+    transports: ["websocket"]
+});
 
 
 socket.on("connect", () => {
@@ -1186,7 +1188,6 @@ document.addEventListener('keydown', (event) => {
 
 
 
-
 function getRandomSkin() {
     const skins = [
         "textures/playerSkin1.png",
@@ -1194,7 +1195,7 @@ function getRandomSkin() {
         "textures/playerSkin5.png",
         "textures/playerSkin14.png",
     ];
-    return skins[Math.floor(Math.random() * skins.length)];
+    return skins[Math.floor(Math.random() * skins.length)];  // ✅ Correct return
 }
 
 
@@ -1228,14 +1229,14 @@ function createPlayer(size, position, isSplit = false) {
     playerMaterial.map.flipY = false;  // ✅ Prevents upside-down texture
     playerMaterial.needsUpdate = true; // ✅ Apply the texture change
 
-
     // ✅ This rotation makes the player **lie flat** on the ground
     player.rotation.x = -Math.PI / 2;  // Rotate 90 degrees
 
     scene.add(player);
     players.push(player);
-    return player;
+    return player;  
 }
+
 
     
 
@@ -1259,6 +1260,7 @@ function createMultiplayerPlayer(id, skinPath, position) {
     const player = new THREE.Mesh(playerGeometry, playerMaterial);
 player.rotation.x = -Math.PI / 2;  // ✅ Ensure multiplayer players are also lying flat
     
+    player.rotation.x = -Math.PI / 2;  // ✅ This makes the player lie flat
 
     playerMaterial.map.flipY = false;
     playerMaterial.needsUpdate = true;
