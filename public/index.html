@@ -11,22 +11,18 @@
 <body>
     <!-- ✅ Canvas für das Spiel -->
     <canvas id="gameCanvas"></canvas>
-canvas {
-    position: fixed; /* Stellt sicher, dass es die ganze Seite abdeckt */
-    top: 0;
-    left: 0;
-    width: 100vw !important;
-    height: 100vh !important;
-    z-index: 1;
-    background: transparent;
-}
-
 
     <!-- ✅ HUD für Score, Timer & Leaderboard -->
     <div id="hud">
-        <div id="score" class="hud">Score: <span id="scoreCounter">0</span></div>
-        <div id="timer" class="hud">Time: 20:00</div>
-        <div id="poolMoney" class="hud">Pool: $0</div>
+        <div id="timer" class="hud">
+            <span class="hud-label">TIME:</span> <span class="hud-value">20:00</span>
+        </div>
+        <div id="score" class="hud">
+            <span class="hud-label">SCORE:</span> <span class="hud-value" id="scoreCounter">0</span>
+        </div>
+        <div id="poolMoney" class="hud">
+            <span class="hud-label">POOL:</span> <span class="hud-value">$0</span>
+        </div>
         <div id="leaderboard" class="hud">
             <h3>TOP 10</h3>
             <ol id="leaderboard-list">
@@ -35,6 +31,13 @@ canvas {
             </ol>
         </div>
     </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three/build/three.module.js"
+        }
+    }</script>
 
     <!-- ✅ WebSockets für Multiplayer -->
     <script src="/socket.io/socket.io.js"></script>

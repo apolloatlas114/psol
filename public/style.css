@@ -22,7 +22,6 @@ canvas {
     background: transparent;
 }
 
-
 /* HUD Styling */
 .hud {
     position: absolute;
@@ -33,21 +32,29 @@ canvas {
     text-transform: uppercase;
 }
 
-/* Score (unten links) */
+/* 🔥 Color Fix: Labels match "TOP10" */
+.hud-label {
+    color: #FF0099 !important; /* 🔥 Now "TIME:", "SCORE:", "POOL:" match "TOP10" */
+}
+
+/* ⬜️ Numbers (white color fix) */
+.hud-value {
+    color: white !important;  /* 🔥 Numbers stay white */
+}
+
+/* 🔽 Score (unten links) */
 #score {
     bottom: 20px;
     left: 20px;
     position: absolute;
 }
 
-/* Timer (oben links) */
+/* 🔼 Timer (oben links) */
 #timer {
     top: 20px;
     left: 20px;
     position: absolute;
 }
-
-
 
 #hud {
     position: absolute;
@@ -59,19 +66,14 @@ canvas {
     pointer-events: none; /* Verhindert, dass das HUD Klicks blockiert */
 }
 
-
-
-
-
-
-/* Pool Money (unten rechts) */
+/* 🔽 Pool Money (unten rechts) */
 #poolMoney {
     bottom: 20px;
     right: 20px;
     position: absolute;
 }
 
-/* Leaderboard (oben rechts) */
+/* 🔼 Leaderboard (oben rechts) */
 #leaderboard {
     top: 20px;
     right: 20px;
@@ -79,14 +81,19 @@ canvas {
     text-align: right;
 }
 
-/* Leaderboard Spieler-Namen */
+/* 🏆 Leaderboard Spieler-Namen */
 #leaderboard-list {
     font-family: 'OldComputer', sans-serif;
-    font-size: 24px;
+    font-size: 10px;
     color: white;
 }
 
-/* Spezielles Old-School Font */
+/* 🎯 "SCORE" (oben rechts, smaller font size) */
+#leaderboard h2 {
+    font-size: 10px; /* 🔥 Made "SCORE" much smaller */
+}
+
+/* 🎮 Spezielles Old-School Font */
 @font-face {
     font-family: 'OldComputer';
     src: url('fonts/old_computer.ttf') format('truetype');
