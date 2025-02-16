@@ -21,29 +21,43 @@
             <span class="hud-label">SCORE:</span> <span class="hud-value" id="scoreCounter">0</span>
         </div>
         <div id="poolMoney" class="hud">
-            <span class="hud-label">POOL:</span> <span class="hud-value">$0</span>
+            <span class="hud-label">POOL:</span> <span class="hud-value" id="poolAmount">$0</span>
         </div>
         <div id="leaderboard" class="hud">
             <h3>TOP 10</h3>
-            <ol id="leaderboard-list">
-                <li>#1: Score 49</li>
-                <li>#2: Score 40</li>
-            </ol>
+            <ol id="leaderboard-list"></ol>
         </div>
     </div>
 
+    <!-- ✅ Correct Three.js import -->
     <script type="importmap">
     {
         "imports": {
-            "three": "https://unpkg.com/three/build/three.module.js"
+            "three": "https://cdn.jsdelivr.net/npm/three@latest/build/three.module.js"
         }
     }</script>
 
-    <!-- ✅ WebSockets für Multiplayer -->
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- ✅ Correct WebSocket script source -->
+    <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.5.4/dist/socket.io.min.js"></script>
 
     <!-- ✅ Lade das Spielscript NACHDEM das DOM geladen wurde -->
     <script type="module" src="game.js"></script>
+
+    <!-- ✅ Update Pool Money in Real-Time -->
+    <script>
+        const socket = io("https://psolgame-e77454844bbd.herokuapp.com/");
+
+        socket.on("updatePool", (amount) => {
+            document.getElementById("poolAmount").innerText = `$${amount.toLocaleString()}`;
+        });
+
+        socket.on("updateLeaderboard", (leaderboard) => {
+            let leaderboardElement = document.getElementById("leaderboard-list");
+            leaderboardElement.innerHTML = leaderboard
+                .map((player, index) => `<li>#${index + 1}: ${player.name} - ${Math.floor(player.score)}</li>`)
+                .join("");
+        });
+    </script>
 
 </body>
 </html>

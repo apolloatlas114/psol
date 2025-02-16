@@ -1199,7 +1199,7 @@ function getRandomSkin() {
 
 
 
-createPlayer(40, new THREE.Vector3(0, 0, 0));
+
 
 
 
@@ -1242,12 +1242,15 @@ function createPlayer(size, position, isSplit = false) {
 
 
 function createMultiplayerPlayer(id, skinPath, position) {
+    if (players.some(player => player.playerId === id)) return; // ✅ Prevent duplicate players
+
     const playerMaterial = new THREE.MeshStandardMaterial({
         map: textureLoader.load(skinPath),
         transparent: true,
         metalness: 0.1,
         roughness: 0.3
     });
+
     const playerGeometry = new THREE.PlaneGeometry(40, 40);
     const player = new THREE.Mesh(playerGeometry, playerMaterial);
 
@@ -1255,9 +1258,11 @@ function createMultiplayerPlayer(id, skinPath, position) {
     player.position.y = Math.max(player.position.y, -30 + 20); // ✅ Ensure Above Ground
     player.size = 40;
     player.playerId = id;
+    
     scene.add(player);
     players.push(player);
 }
+
 
 
 
@@ -1284,13 +1289,21 @@ socket.on("connect", () => {
     console.log("✅ Connected to server!");
 
     socket.emit("joinGame"); // Request to join game
+
+    // ✅ Ensure the player is created only ONCE
+    if (players.length === 0) {
+        createPlayer(40, new THREE.Vector3(0, 0, 0));
+    }
 });
 
 
 
 
 // ✅ Spieler wird NUR EINMAL erstellt, nicht in der Funktion selbst
-createPlayer(40, new THREE.Vector3(0, 40, 0));
+if (players.length === 0) { 
+    createPlayer(40, new THREE.Vector3(0, 0, 0)); 
+}
+
 
 // ✅ Fenster-Resize-Handler
 window.addEventListener('resize', () => {
