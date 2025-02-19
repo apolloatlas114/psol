@@ -40,24 +40,36 @@
     </div>
 
     <!-- ✅ Game Canvas (Initially Hidden) -->
-    <canvas id="gameCanvas" style="display: none;"></canvas>
+   <canvas id="gameCanvas" style="display: none;"></canvas>
 
-    <!-- ✅ HUD (Score, Timer & Leaderboard) -->
-    <div id="hud" style="display: none;"> 
-        <div id="timer" class="hud">
-            <span class="hud-label">TIME:</span> <span class="hud-value">20:00</span>
-        </div>
-        <div id="score" class="hud">
-            <span class="hud-label">SCORE:</span> <span class="hud-value" id="scoreCounter">0</span>
-        </div>
-        <div id="poolMoney" class="hud">
-            <span class="hud-label">POOL:</span> <span class="hud-value" id="poolAmount">$0</span>
-        </div>
+<!-- ✅ HUD (Score, Timer & Leaderboard) -->
+<div id="hud" style="display: none;"> 
+    <div id="timer" class="hud">
+        <span class="hud-label">TIME:</span> <span class="hud-value">20:00</span>
+    </div>
 
-        <div id="leaderboard" class="hud">
-            <h3>TOP 10</h3>
-            <ol id="leaderboard-list"></ol>
-        </div>
+    <!-- ✅ Keep bottom-left Score Counter -->
+    <div id="score" class="hud" style="position: absolute; bottom: 10px; left: 20px;">
+        <span class="hud-label">SCORE:</span> <span class="hud-value" id="scoreCounter">0</span>
+    </div>
+
+    <!-- ✅ Keep bottom-right Pool Money -->
+    <div id="poolMoney" class="hud" style="position: absolute; bottom: 10px; right: 20px;">
+        <span class="hud-label">POOL:</span> <span class="hud-value" id="poolAmount">$0</span>
+    </div>
+
+    <!-- ✅ Fix leaderboard placement (TOP RIGHT) -->
+    <!-- ✅ TOP 10 PLAYERS Leaderboard (HUD - Top Right) -->
+<div id="leaderboard" class="hud">
+    <h3>TOP 10 PLAYERS</h3>
+    <ul id="leaderboard-list"></ul>
+</div>
+
+
+</div>
+
+
+
     </div>
 
     <!-- ✅ Load Socket.IO -->

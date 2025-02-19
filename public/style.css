@@ -74,28 +74,42 @@ canvas {
 }
 
 /* 🔼 Leaderboard (oben rechts) */
+/* 🏆 Leaderboard Container */
 #leaderboard {
-    top: 20px;
-    right: 20px;
     position: absolute;
+    top: 10px;
+    right: 32px;
+    color: #FF0099;
+    font-family: 'Lazer84', sans-serif;  /* ✅ Keep original font */
     text-align: right;
+    font-size: 18px;  /* ✅ Ensure readability */
 }
 
-/* 🏆 Leaderboard Spieler-Namen */
+/* 🎮 Leaderboard Player Names */
 #leaderboard-list {
-    font-family: 'OldComputer', sans-serif;
-    font-size: 18px;  /* ✅ Increased for better readability */
+     
+    font-size: 16px;  /* ✅ Adjusted for better visibility */
     color: white;
-    text-transform: none; /* ✅ Ensure names are displayed correctly */
-    text-align: right; /* ✅ Align to right for better spacing */
-    white-space: nowrap; /* ✅ Prevents name wrapping issues */
+    
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* ⭐ Highlight Current Player in Gold */
+#leaderboard-list .current-player {
+    color: #FFD700; /* Gold */
+    font-weight: bold;
+}
+
+.player-name {
+    color: white !important;
+    font-size: 18px !important;
 }
 
 
-/* 🎯 "SCORE" (oben rechts, smaller font size) */
-#leaderboard h2 {
-    font-size: 10px; /* 🔥 Made "SCORE" much smaller */
-}
+
+
 
 /* 🎮 Spezielles Old-School Font */
 @font-face {
