@@ -84,9 +84,13 @@ canvas {
 /* 🏆 Leaderboard Spieler-Namen */
 #leaderboard-list {
     font-family: 'OldComputer', sans-serif;
-    font-size: 10px;
+    font-size: 18px;  /* ✅ Increased for better readability */
     color: white;
+    text-transform: none; /* ✅ Ensure names are displayed correctly */
+    text-align: right; /* ✅ Align to right for better spacing */
+    white-space: nowrap; /* ✅ Prevents name wrapping issues */
 }
+
 
 /* 🎯 "SCORE" (oben rechts, smaller font size) */
 #leaderboard h2 {

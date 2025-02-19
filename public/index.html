@@ -9,11 +9,18 @@
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
-    <!-- ✅ Canvas für das Spiel -->
-    <canvas id="gameCanvas"></canvas>
 
-    <!-- ✅ HUD für Score, Timer & Leaderboard -->
-    <div id="hud">
+    <!-- ✅ Name Input Field (Must Enter Before Playing) -->
+    <div id="nameEntry">
+        <input type="text" id="playerNameInput" placeholder="Enter your name">
+        <button id="joinGameButton">Join Game</button>
+    </div>
+
+    <!-- ✅ Canvas for the game (Initially hidden) -->
+    <canvas id="gameCanvas" style="display: none;"></canvas>
+
+    <!-- ✅ HUD for Score, Timer & Leaderboard -->
+    <div id="hud" style="display: none;"> <!-- HUD also hidden until game starts -->
         <div id="timer" class="hud">
             <span class="hud-label">TIME:</span> <span class="hud-value">20:00</span>
         </div>
@@ -23,6 +30,7 @@
         <div id="poolMoney" class="hud">
             <span class="hud-label">POOL:</span> <span class="hud-value" id="poolAmount">$0</span>
         </div>
+
         <div id="leaderboard" class="hud">
             <h3>TOP 10</h3>
             <ol id="leaderboard-list"></ol>
@@ -40,22 +48,46 @@
     <!-- ✅ Correct WebSocket script source -->
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.5.4/dist/socket.io.min.js"></script>
 
-    <!-- ✅ Lade das Spielscript NACHDEM das DOM geladen wurde -->
-    <script type="module" src="game.js"></script>
-
-    <!-- ✅ Update Pool Money in Real-Time -->
+    <!-- ✅ Multiplayer Initialization (Waits for Player Name) -->
     <script>
-        const socket = io("https://psolgame-e77454844bbd.herokuapp.com/");
+        let socket; // Declare globally
 
-        socket.on("updatePool", (amount) => {
-            document.getElementById("poolAmount").innerText = `$${amount.toLocaleString()}`;
-        });
+        document.getElementById("joinGameButton").addEventListener("click", function () {
+            let username = document.getElementById("playerNameInput").value.trim();
+            
+            if (!username) {
+                alert("⚠️ Please enter a valid name before joining!");
+                return;
+            }
 
-        socket.on("updateLeaderboard", (leaderboard) => {
-            let leaderboardElement = document.getElementById("leaderboard-list");
-            leaderboardElement.innerHTML = leaderboard
-                .map((player, index) => `<li>#${index + 1}: ${player.name} - ${Math.floor(player.score)}</li>`)
-                .join("");
+            localStorage.setItem("playerName", username); // ✅ Save the name for session persistence
+
+            // ✅ Show game canvas & HUD after name is entered
+            document.getElementById("nameEntry").style.display = "none";
+            document.getElementById("gameCanvas").style.display = "block";
+            document.getElementById("hud").style.display = "block";
+
+            // ✅ Initialize WebSocket only AFTER the name is set
+            socket = io("https://psolgame-e77454844bbd.herokuapp.com/");
+            
+            // ✅ Send the player name to the server
+            socket.emit("playerJoin", { username });
+
+            // ✅ Listen for leaderboard updates
+            socket.on("updateLeaderboard", (leaderboard) => {
+                let leaderboardElement = document.getElementById("leaderboard-list");
+                leaderboardElement.innerHTML = leaderboard
+                    .map((player, index) => `<li>#${index + 1}: ${player.name} - ${Math.floor(player.score)}</li>`)
+                    .join("");
+            });
+
+            // ✅ Load game scripts only after player joins
+            setTimeout(() => {
+    console.log("✅ Loading game scripts after HUD is visible...");
+    import("./game.js");
+    import("./multiplayer.js");
+}, 500); // Wait 500ms to ensure HUD is displayed
+
         });
     </script>
 

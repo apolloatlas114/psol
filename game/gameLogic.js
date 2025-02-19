@@ -103,6 +103,58 @@ function checkCollisions() {
 }
 setInterval(checkCollisions, 100);
 
+
+
+
+
+
+async function endGame(gameId, winners) {
+    try {
+        const response = await fetch("https://psolgame-e77454844bbd.herokuapp.com/api/prize/distribute-prizes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ gameId, winners }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            console.log("Prizes successfully sent!");
+        } else {
+            console.error("Prize distribution failed:", data.message);
+        }
+    } catch (error) {
+        console.error("Error ending game:", error);
+    }
+}
+
+// Call `endGame` when a match finishes
+function checkGameOver(gameId) {
+    const game = activeGames[gameId];
+    if (!game) return;
+
+    if (Date.now() >= game.endTime) {
+        console.log(`Game ${gameId} ended. Processing winners...`);
+
+        const sortedPlayers = game.players.sort((a, b) => b.score - a.score);
+        const winners = sortedPlayers.slice(0, 3).map((player, index) => ({
+            username: player.username,
+            wallet: player.wallet,
+            position: index + 1
+        }));
+
+        endGame(gameId, winners);
+        delete activeGames[gameId];
+    }
+}
+
+
+
+
+
+
+
+
+
 // 🔥 **Sanfte Kamera-Zoom-Anpassung**
 function smoothZoomUpdate() {
     for (let id in players) {

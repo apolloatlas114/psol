@@ -9,9 +9,41 @@ const clock = new THREE.Clock(); // ✅ Define the clock at the top of your game
 
 
 
+import { socket } from './multiplayer.js';
 
 
 
+socket.on("updateScore", ({ id, score }) => {
+    if (players[id]) {
+        players[id].score = score;
+    }
+    updateHUD(); // 🔥 Ensure HUD updates when the score changes
+});
+
+
+
+
+
+
+socket.on("updateLeaderboard", (leaderboard) => {
+    console.log("📊 Updating Leaderboard from Multiplayer:", leaderboard);
+
+    let leaderboardElement = document.getElementById("leaderboard-list");
+    if (!leaderboardElement) return;
+
+    leaderboardElement.innerHTML = leaderboard
+        .map((player, index) => `<li>#${index + 1}: ${player.name} - ${Math.floor(player.score)}</li>`)
+        .join("");
+
+    // Show the player's own rank if they are not in the top 10
+    if (!leaderboard.some(p => p.id === socket.id)) {
+        let currentPlayer = players[socket.id];
+        if (currentPlayer) {
+            let playerRank = leaderboard.length + 1;
+            leaderboardElement.innerHTML += `<li>#${playerRank}: ${currentPlayer.name} - ${Math.floor(currentPlayer.score)}</li>`;
+        }
+    }
+});
 
 
 
@@ -430,11 +462,12 @@ function checkMonsterCollision() {
                 
                 setTimeout(() => {
                     player.isHit = false;
-                }, 1000);
+                }, 3000);
             }
         }
     });
 }
+
 
 
 function updateMonsterAnimations() {
@@ -458,17 +491,7 @@ function mergeMonsters() {
     let positions = [];
     
     let lastHitTime = 0;
-function checkMonsterCollision() {
-    let now = performance.now();
-    if (now - lastHitTime < 1000) return; // ✅ Only check every 1 second
 
-    monsters.forEach(monster => {
-        if (player.position.distanceTo(monster.position) < 5) {
-            player.size *= 0.7;
-            lastHitTime = now; // ✅ Set cooldown
-        }
-    });
-}
 
     
     mergedGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -1162,7 +1185,21 @@ function createPlayer(size, position, isSplit = false) {
 }
 
 
+function updateHUD() {
+    if (players[socket.id]) {
+        document.getElementById("scoreCounter").innerText = Math.floor(players[socket.id].score);
+    }
+}
 
+function checkGameEnd() {
+    let remainingTime = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+    if (remainingTime === 0) {
+        console.log("⏳ Game Over!");  
+        socket.emit("gameOver"); // Inform server to stop tracking scores
+        document.getElementById("hud").innerHTML = "<h1>Game Over</h1>";
+    }
+}
+setInterval(checkGameEnd, 1000);
 
 
 
