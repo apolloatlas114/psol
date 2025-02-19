@@ -18,6 +18,9 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
+const cors = require("cors");
+app.use(cors({ origin: "*" })); // Allows all domains (for testing)
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] },
