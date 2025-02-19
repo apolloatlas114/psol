@@ -16,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config();
-
+const cors = require("cors");
 const app = express();
 const cors = require("cors");
 app.use(cors({ origin: "*" })); // Allows all domains (for testing)
@@ -29,7 +29,11 @@ const io = new Server(server, {
 
 
 
-app.use(cors({ origin: "https://gaming-dashboard.webflow.io" })); // ✅ Allow only Webflow
+app.use(cors({
+    origin: "https://gaming-dashboard.webflow.io", // Allow only Webflow dashboard
+    methods: ["GET", "POST"],
+    credentials: true
+}));
 
 
 
