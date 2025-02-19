@@ -5,22 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PSOL Game - 3D Agar.io</title>
 
-    <!-- ✅ Externe CSS-Datei -->
+    <!-- ✅ External CSS -->
     <link rel="stylesheet" type="text/css" href="style.css">
+
+    <!-- ✅ Three.js Import (with Fallback) -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@latest/build/three.module.js"
+        }
+    }</script>
+    <script>
+(async function() {
+    try {
+        await import("three");
+        console.log("✅ Three.js loaded via importmap.");
+    } catch (e) {
+        console.warn("⚠️ Importmap failed, loading Three.js via fallback...");
+        let script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/three@latest/build/three.min.js";
+        script.onload = () => console.log("✅ Three.js Fallback Loaded!");
+        document.head.appendChild(script);
+    }
+})();
+</script>
+
 </head>
 <body>
 
-    <!-- ✅ Name Input Field (Must Enter Before Playing) -->
+    <!-- ✅ Player Name Input (Required Before Joining) -->
     <div id="nameEntry">
         <input type="text" id="playerNameInput" placeholder="Enter your name">
         <button id="joinGameButton">Join Game</button>
     </div>
 
-    <!-- ✅ Canvas for the game (Initially hidden) -->
+    <!-- ✅ Game Canvas (Initially Hidden) -->
     <canvas id="gameCanvas" style="display: none;"></canvas>
 
-    <!-- ✅ HUD for Score, Timer & Leaderboard -->
-    <div id="hud" style="display: none;"> <!-- HUD also hidden until game starts -->
+    <!-- ✅ HUD (Score, Timer & Leaderboard) -->
+    <div id="hud" style="display: none;"> 
         <div id="timer" class="hud">
             <span class="hud-label">TIME:</span> <span class="hud-value">20:00</span>
         </div>
@@ -37,58 +60,75 @@
         </div>
     </div>
 
-    <!-- ✅ Correct Three.js import -->
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@latest/build/three.module.js"
-        }
-    }</script>
-
-    <!-- ✅ Correct WebSocket script source -->
+    <!-- ✅ Load Socket.IO -->
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.5.4/dist/socket.io.min.js"></script>
 
-    <!-- ✅ Multiplayer Initialization (Waits for Player Name) -->
+    <!-- ✅ Multiplayer WebSocket Connection -->
     <script>
-        let socket; // Declare globally
+        let socket;
 
-        document.getElementById("joinGameButton").addEventListener("click", function () {
+        document.getElementById("joinGameButton").addEventListener("click", async function () {
             let username = document.getElementById("playerNameInput").value.trim();
-            
+
             if (!username) {
                 alert("⚠️ Please enter a valid name before joining!");
                 return;
             }
 
-            localStorage.setItem("playerName", username); // ✅ Save the name for session persistence
+            localStorage.setItem("playerName", username);
 
-            // ✅ Show game canvas & HUD after name is entered
+            // ✅ Show game canvas & HUD
             document.getElementById("nameEntry").style.display = "none";
             document.getElementById("gameCanvas").style.display = "block";
             document.getElementById("hud").style.display = "block";
 
-            // ✅ Initialize WebSocket only AFTER the name is set
-            socket = io("https://psolgame-e77454844bbd.herokuapp.com/");
-            
-            // ✅ Send the player name to the server
-            socket.emit("playerJoin", { username });
+            // ✅ Ensure Socket.IO is available before initializing socket
+            if (typeof io === "undefined") {
+                console.error("❌ ERROR: Socket.IO (io) is not loaded!");
+                alert("Socket.IO failed to load. Please refresh the page.");
+                return;
+            }
 
-            // ✅ Listen for leaderboard updates
-            socket.on("updateLeaderboard", (leaderboard) => {
-                let leaderboardElement = document.getElementById("leaderboard-list");
-                leaderboardElement.innerHTML = leaderboard
-                    .map((player, index) => `<li>#${index + 1}: ${player.name} - ${Math.floor(player.score)}</li>`)
-                    .join("");
-            });
+            try {
+                socket = io("https://psolgame-e77454844bbd.herokuapp.com", {
+                    transports: ["websocket", "polling"],
+                    withCredentials: true // ✅ Ensures CORS works properly
+                });
 
-            // ✅ Load game scripts only after player joins
-            setTimeout(() => {
-    console.log("✅ Loading game scripts after HUD is visible...");
-    import("./game.js");
-    import("./multiplayer.js");
-}, 500); // Wait 500ms to ensure HUD is displayed
+                console.log("✅ WebSocket connected!");
 
+                // ✅ Send player name to the server
+                socket.emit("playerJoin", { username });
+
+                // ✅ Listen for leaderboard updates
+                socket.on("updateLeaderboard", (leaderboard) => {
+                    let leaderboardElement = document.getElementById("leaderboard-list");
+                    leaderboardElement.innerHTML = leaderboard
+                        .map((player, index) => `<li>#${index + 1}: ${player.name} - ${Math.floor(player.score)}</li>`)
+                        .join("");
+                });
+
+                // ✅ Load Game Scripts After WebSocket is Initialized
+                await loadGameScripts();
+
+            } catch (error) {
+                console.error("❌ WebSocket Connection Failed:", error);
+                alert("⚠️ Failed to connect to the game server.");
+            }
         });
+
+        // ✅ Async function to load game scripts AFTER WebSocket is initialized
+        async function loadGameScripts() {
+            console.log("✅ Loading game scripts after WebSocket initialization...");
+            try {
+                await import("./game.js");
+                await import("./multiplayer.js");
+                console.log("✅ Game scripts loaded successfully!");
+            } catch (err) {
+                console.error("❌ Error loading game scripts:", err);
+                alert("⚠️ Failed to load game scripts. Please refresh the page.");
+            }
+        }
     </script>
 
 </body>

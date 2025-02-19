@@ -12,33 +12,30 @@ import userRoutes from "./routes/user.js";
 import authRoutes from "./routes/auth.js";
 import prizeRoutes from "./routes/prize.js";
 
+dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config();
-
 const app = express();
-
-// ✅ Apply correct CORS settings for HTTP Requests
-const corsOptions = {
-    origin: "https://gaming-dashboard.webflow.io", // Allow requests from Webflow
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"],
-    credentials: true
-};
-
-app.use(cors(corsOptions));
-
 const server = http.createServer(app);
 
-// ✅ Fix CORS for WebSockets
+// ✅ Fix CORS Issues
+
+app.use(cors({
+    origin: ["https://gaming-dashboard.webflow.io", "http://localhost:5000"],  // ✅ Allow Webflow & Localhost
+    methods: ["GET", "POST"],
+    credentials: true,  // ✅ Ensures WebSockets can use cookies
+    allowedHeaders: ["Content-Type"]
+}));
+
 const io = new Server(server, {
     cors: {
-        origin: "https://gaming-dashboard.webflow.io", // Allow Webflow to connect
+        origin: ["https://gaming-dashboard.webflow.io", "http://localhost:5000"],
         methods: ["GET", "POST"],
         credentials: true
     }
 });
+
 
 // ✅ Middleware
 app.use(express.json());
@@ -56,16 +53,16 @@ app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/prize", prizeRoutes);
 
-// ✅ Apply Rate Limits for Security
+// ✅ Rate Limits for Security
 const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 10,
+    max: 5,
     message: "❌ Too many requests, please slow down!",
 });
 app.use("/api/buyin", apiLimiter);
 app.use("/api/payout", apiLimiter);
 
-// ✅ WebSocket (Multiplayer Logic)
+// ✅ Multiplayer WebSocket Logic
 let connectedPlayers = {};
 let leaderboard = [];
 
@@ -79,23 +76,32 @@ io.on("connection", (socket) => {
         }
 
         username = username.trim();
-        let originalUsername = username;
+        let uniqueUsername = username;
         let counter = 1;
 
-        while (Object.values(connectedPlayers).some(p => p.name === username)) {
-            username = `${originalUsername}${counter}`;
+        while (Object.values(connectedPlayers).some(p => p.name === uniqueUsername)) {
+            uniqueUsername = `${username}${counter}`;
             counter++;
         }
 
-        console.log(`🟢 Player joined as: ${username} (ID: ${socket.id})`);
+        console.log(`🟢 Player joined Free Play as: ${uniqueUsername} (ID: ${socket.id})`);
+
+        const availableSkins = [
+            "textures/playerSkin1.png",
+            "textures/playerSkin4.png",
+            "textures/playerSkin5.png",
+            "textures/playerSkin14.png"
+        ];
+        let assignedSkin = availableSkins[Math.floor(Math.random() * availableSkins.length)];
 
         connectedPlayers[socket.id] = {
             id: socket.id,
-            name: username,
+            name: uniqueUsername,
             x: Math.random() * 1000 - 500,
             z: Math.random() * 1000 - 500,
             score: 0,
-            mode: "free"
+            skin: assignedSkin,
+            mode: "free" // ✅ Track game mode
         };
 
         // ✅ Send confirmation only to the player who joined
@@ -104,6 +110,19 @@ io.on("connection", (socket) => {
         // ✅ Notify all players about the new player
         io.emit("newPlayer", connectedPlayers[socket.id]);
 
+        updateLeaderboard();
+    });
+
+    socket.on("playerMove", ({ id, x, z }) => {
+        if (!connectedPlayers[id]) return; // ✅ Prevent crash if player disconnects
+        connectedPlayers[id].x = x;
+        connectedPlayers[id].z = z;
+        io.emit("updatePlayers", connectedPlayers);
+    });
+
+    socket.on("updateScore", ({ id, score }) => {
+        if (!connectedPlayers[id]) return; // ✅ Prevent crash if player disconnects
+        connectedPlayers[id].score = score;
         updateLeaderboard();
     });
 
@@ -127,4 +146,4 @@ function updateLeaderboard() {
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`🚀 Server running on port http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
