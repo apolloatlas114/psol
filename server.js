@@ -12,33 +12,31 @@ import userRoutes from "./routes/user.js";
 import authRoutes from "./routes/auth.js";
 import prizeRoutes from "./routes/prize.js";
 
+dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config();
-const cors = require("cors");
 const app = express();
-const cors = require("cors");
-app.use(cors({ origin: "*" })); // Allows all domains (for testing)
-
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] },
-});
 
-
-
-
+// ✅ Fix CORS Issues
 app.use(cors({
-    origin: "https://gaming-dashboard.webflow.io", // Allow only Webflow dashboard
+    origin: "https://gaming-dashboard.webflow.io",
     methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
 }));
 
-
+// ✅ WebSocket with CORS Fix
+const io = new Server(server, {
+    cors: { 
+        origin: "https://gaming-dashboard.webflow.io", 
+        methods: ["GET", "POST"],
+        credentials: true
+    }
+});
 
 // ✅ Middleware
-
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public"), { extensions: ["html", "css", "js"] }));
 
@@ -49,7 +47,7 @@ mongoose.connect(process.env.MONGO_URI, {
 }).then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// ✅ API Routes (using `import` instead of `require`)
+// ✅ API Routes
 app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/prize", prizeRoutes);
@@ -71,64 +69,60 @@ io.on("connection", (socket) => {
     console.log(`🟢 Player connected: ${socket.id}`);
 
     socket.on("playerJoin", ({ username }) => {
-    if (!username || username.trim() === "") {
-        socket.emit("error", "❌ ERROR: No valid name entered!");
-        return;
-    }
+        if (!username || username.trim() === "") {
+            socket.emit("error", "❌ ERROR: No valid name entered!");
+            return;
+        }
 
-    username = username.trim();
-    let originalUsername = username;
-    let counter = 1;
+        username = username.trim();
+        let uniqueUsername = username;
+        let counter = 1;
 
-    while (Object.values(connectedPlayers).some(p => p.name === username)) {
-        username = `${originalUsername}${counter}`;
-        counter++;
-    }
+        while (Object.values(connectedPlayers).some(p => p.name === uniqueUsername)) {
+            uniqueUsername = `${username}${counter}`;
+            counter++;
+        }
 
-    console.log(`🟢 Player joined Free Play as: ${username} (ID: ${socket.id})`);
+        console.log(`🟢 Player joined Free Play as: ${uniqueUsername} (ID: ${socket.id})`);
 
-    const availableSkins = [
-        "textures/playerSkin1.png",
-        "textures/playerSkin4.png",
-        "textures/playerSkin5.png",
-        "textures/playerSkin14.png"
-    ];
-    let assignedSkin = availableSkins[Math.floor(Math.random() * availableSkins.length)];
+        const availableSkins = [
+            "textures/playerSkin1.png",
+            "textures/playerSkin4.png",
+            "textures/playerSkin5.png",
+            "textures/playerSkin14.png"
+        ];
+        let assignedSkin = availableSkins[Math.floor(Math.random() * availableSkins.length)];
 
-    connectedPlayers[socket.id] = {
-        id: socket.id,
-        name: username,
-        x: Math.random() * 1000 - 500,
-        z: Math.random() * 1000 - 500,
-        score: 0,
-        skin: assignedSkin,
-        mode: "free" // ✅ Track game mode
-    };
+        connectedPlayers[socket.id] = {
+            id: socket.id,
+            name: uniqueUsername,
+            x: Math.random() * 1000 - 500,
+            z: Math.random() * 1000 - 500,
+            score: 0,
+            skin: assignedSkin,
+            mode: "free" // ✅ Track game mode
+        };
 
-    // ✅ Send confirmation only to the player who joined
-    socket.emit("playerData", { id: socket.id, players: connectedPlayers });
+        // ✅ Send confirmation only to the player who joined
+        socket.emit("playerData", { id: socket.id, players: connectedPlayers });
 
-    // ✅ Notify all players about the new player
-    io.emit("newPlayer", connectedPlayers[socket.id]);
+        // ✅ Notify all players about the new player
+        io.emit("newPlayer", connectedPlayers[socket.id]);
 
-    updateLeaderboard();
-});
-
-
+        updateLeaderboard();
+    });
 
     socket.on("playerMove", ({ id, x, z }) => {
-        if (connectedPlayers[id]) {
-            connectedPlayers[id].x = x;
-            connectedPlayers[id].z = z;
-            io.emit("updatePlayers", connectedPlayers);
-        }
+        if (!connectedPlayers[id]) return; // ✅ Prevent crash if player disconnects
+        connectedPlayers[id].x = x;
+        connectedPlayers[id].z = z;
+        io.emit("updatePlayers", connectedPlayers);
     });
 
     socket.on("updateScore", ({ id, score }) => {
-        if (connectedPlayers[id]) {
-            connectedPlayers[id].score = score;
-            updateLeaderboard();
-        }
+        if (!connectedPlayers[id]) return; // ✅ Prevent crash if player disconnects
+        connectedPlayers[id].score = score;
+        updateLeaderboard();
     });
 
     socket.on("disconnect", () => {

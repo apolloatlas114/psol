@@ -89,7 +89,11 @@ document.getElementById("free-game-btn").addEventListener("click", async () => {
     }
 
     // ✅ Connect to WebSocket
-    const socket = io("https://psolgame-e77454844bbd.herokuapp.com", { transports: ["websocket", "polling"] });
+    const socket = io("https://psolgame-e77454844bbd.herokuapp.com", {
+    transports: ["websocket"],
+    withCredentials: true
+});
+
 
     // ✅ Join Free Play Mode
     socket.emit("playerJoin", { username });
