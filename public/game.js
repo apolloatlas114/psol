@@ -13,77 +13,46 @@ import { socket } from './multiplayer.js';
 
 
 
-
-
-
-
-function sendScoreUpdate(score) {
-    if (!socket || !socket.id) return;
-
-    console.log(`📨 [CLIENT] Sending score update: ${score} for player ${socket.id}`);
-    socket.emit("updateScore", { id: socket.id, score });
-}
-
-
+socket.on("updateScore", ({ id, score }) => {
+    if (players[id]) {
+        players[id].score = score;
+    }
+    updateHUD(); // 🔥 Ensure HUD updates when the score changes
+});
 
 
 
 
 
 socket.on("updateLeaderboard", (leaderboard) => {
-    console.log("📊 [CLIENT] Received leaderboard update:", leaderboard);
+    console.log("📊 Received leaderboard update:", leaderboard);
 
     let leaderboardElement = document.getElementById("leaderboard-list");
     leaderboardElement.innerHTML = ""; // ✅ Clear old leaderboard before updating
 
     leaderboard.forEach((player, index) => {
-        console.log(`🔍 Player ${index + 1}: Name = ${player.name}, Score = ${player.score}`);
+        console.log(`🔍 Player ${index + 1}:`, player); // ✅ Debugging to see name & score
 
         let listItem = document.createElement("li");
 
-        // ✅ If it's the current player, use the live score from the HUD
-        let liveScore = player.id === socket.id 
-                        ? document.getElementById("scoreCounter").innerText // ✅ Get HUD Score
-                        : Math.floor(player.score); // ✅ Otherwise, use server score
-
-        console.log(`🔎 [DEBUG] Leaderboard Score for ${player.name}: ${liveScore}`);
-
-        // ✅ Ensure the score is always a number and updates live
-        if (!liveScore || isNaN(liveScore)) {
-            liveScore = 40; // Default starting value (same as game start)
+        // ✅ Ensure player has a name
+        if (player.name && player.name.trim() !== "") {
+            listItem.innerHTML = `#${index + 1}: <span class="player-name">${player.name}</span> - <span class="player-score">${Math.floor(player.score)}</span>`;
+        } else {
+            console.warn(`⚠️ Missing player name for index ${index}. Full player object:`, player);
+            listItem.innerHTML = `#${index + 1}: <span class="player-name">UNKNOWN</span> - <span class="player-score">${Math.floor(player.score)}</span>`;
         }
 
-        // ✅ Display in the leaderboard
-        listItem.innerHTML = `#${index + 1}: <span class="player-name">${player.name}</span> - SCORE <span class="player-score">${liveScore}</span>`;
-
+        // ✅ Highlight the current player in GOLD
         if (player.id === socket.id) {
-            listItem.classList.add("current-player"); // ✅ Highlight the current player
+            listItem.classList.add("current-player");
         }
 
         leaderboardElement.appendChild(listItem);
     });
 
-    console.log("✅ [CLIENT] Leaderboard updated successfully!");
+    console.log("✅ Leaderboard updated successfully!");
 });
-
-// ✅ Update leaderboard when player score changes
-socket.on("updateScore", ({ id, score }) => {
-    if (players[id]) {
-        players[id].score = score; // ✅ Update client-side score
-    }
-    updateHUD();  // ✅ Ensure bottom-left HUD is updated
-    socket.emit("updateLeaderboard"); // ✅ Force leaderboard refresh
-});
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1147,7 +1116,9 @@ function updateCamera() {
     let leaderboardElement = document.getElementById('leaderboard-list');
     if (leaderboardElement) {
         let sortedPlayers = players.slice().sort((a, b) => b.size - a.size).slice(0, 10);
-        
+        leaderboardElement.innerHTML = sortedPlayers.map((player, index) =>
+            `<li>#${index + 1}: Score ${Math.floor(player.size)}</li>`
+        ).join('');
     }
 
 
@@ -1232,46 +1203,9 @@ function createPlayer(size, position, isSplit = false) {
 
 function updateHUD() {
     if (players[socket.id]) {
-        let currentScore = Math.floor(players[socket.id].score);
-        document.getElementById("scoreCounter").innerText = currentScore; // ✅ Update HUD
-
-        // ✅ ALSO update the leaderboard live!
-        updateLeaderboardUI(window.leaderboard);
+        document.getElementById("scoreCounter").innerText = Math.floor(players[socket.id].score);
     }
 }
-
-
-
-function updateLeaderboardUI() {
-    let leaderboardElement = document.getElementById("leaderboard-list");
-    if (!leaderboardElement) return;
-
-    leaderboardElement.innerHTML = leaderboard
-        .map((player, index) => {
-            let isCurrentPlayer = player.id === socket.id;
-            let liveScore = isCurrentPlayer
-                            ? parseInt(document.getElementById("scoreCounter").innerText) 
-                            : Math.floor(player.score);
-
-            console.log(`🔎 [DEBUG] Leaderboard Score for ${player.name}: ${liveScore}`);
-
-            return `<li>#${index + 1}: <span class="player-name">${player.name}</span> - SCORE <span class="player-score">${liveScore}</span></li>`;
-        })
-        .join("");
-
-    console.log("✅ [CLIENT] Leaderboard updated successfully!");
-}
-
-
-
-
-
-
-
-
-
-
-
 
 function checkGameEnd() {
     let remainingTime = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
@@ -1296,5 +1230,7 @@ window.addEventListener('resize', () => {
 });
 
 animate();
+
+
 
 
