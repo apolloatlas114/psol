@@ -64,7 +64,9 @@ app.use("/api/payout", apiLimiter);
 
 // ✅ Multiplayer WebSocket Logic
 let connectedPlayers = {};
+let waitingRoom = []; // ✅ Players waiting to start
 let leaderboard = [];
+const minPlayersToStart = 2; // ✅ Adjust this based on your needs
 
 io.on("connection", (socket) => {
     console.log(`🟢 Player connected: ${socket.id}`);
@@ -84,34 +86,58 @@ io.on("connection", (socket) => {
             counter++;
         }
 
-        console.log(`🟢 Player joined as: ${username} (ID: ${socket.id})`);
+        console.log(`🕐 Player entered waiting room: ${username} (ID: ${socket.id})`);
 
-        const availableSkins = [
-            "textures/playerSkin1.png",
-            "textures/playerSkin4.png",
-            "textures/playerSkin5.png",
-            "textures/playerSkin14.png"
-        ];
-        let assignedSkin = availableSkins[Math.floor(Math.random() * availableSkins.length)];
+        // ✅ Add to the waiting room
+        waitingRoom.push({ id: socket.id, name: username });
 
-        connectedPlayers[socket.id] = {
-            id: socket.id,
-            name: username,
-            x: Math.random() * 1000 - 500,
-            z: Math.random() * 1000 - 500,
-            score: 0, // Start with score 0
-            skin: assignedSkin,
-            mode: "free"
-        };
+        // ✅ Notify all players in the waiting room
+        io.emit("waitingRoomUpdate", waitingRoom);
 
-        // ✅ Send confirmation only to the player who joined
-        socket.emit("playerData", { id: socket.id, players: connectedPlayers });
-
-        // ✅ Notify all players about the new player
-        io.emit("newPlayer", connectedPlayers[socket.id]);
-
-        updateLeaderboard();
+        // ✅ If enough players are in the waiting room, start the match
+        if (waitingRoom.length >= minPlayersToStart) {
+            startGame();
+        }
     });
+
+
+    socket.on("leaveWaitingRoom", () => {
+    console.log(`❌ Player left waiting room: ${socket.id}`);
+    waitingRoom = waitingRoom.filter(player => player.id !== socket.id);
+    io.emit("waitingRoomUpdate", waitingRoom);
+});
+
+
+    function startGame() {
+        console.log("🚀 Starting match with players:", waitingRoom.map(p => p.name));
+
+        waitingRoom.forEach(player => {
+            const availableSkins = [
+                "textures/playerSkin1.png",
+                "textures/playerSkin4.png",
+                "textures/playerSkin5.png",
+                "textures/playerSkin14.png"
+            ];
+            let assignedSkin = availableSkins[Math.floor(Math.random() * availableSkins.length)];
+
+            // ✅ Move players from waiting room to active game
+            connectedPlayers[player.id] = {
+                id: player.id,
+                name: player.name,
+                x: Math.random() * 1000 - 500,
+                z: Math.random() * 1000 - 500,
+                score: 0, // Start with score 0
+                skin: assignedSkin,
+                mode: "free"
+            };
+
+            // ✅ Notify players their game is starting
+            io.to(player.id).emit("gameStart", connectedPlayers);
+        });
+
+        waitingRoom = []; // ✅ Clear waiting room after starting
+        updateLeaderboard(); // ✅ Refresh leaderboard when game starts
+    }
 
     socket.on("updateScore", ({ id, score }) => {
         if (connectedPlayers[id]) {
@@ -122,7 +148,12 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => {
         console.log(`❌ Player disconnected: ${socket.id}`);
+
         delete connectedPlayers[socket.id];
+
+        // ✅ Remove from waiting room if they haven't started yet
+        waitingRoom = waitingRoom.filter(player => player.id !== socket.id);
+
         io.emit("removePlayer", socket.id);
         updateLeaderboard();
     });
