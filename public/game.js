@@ -1,10 +1,16 @@
 // ✅ Import Three.js
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@latest/build/three.module.js';
 
-const mixers = [];  // ✅ Stores animation mixers for monsters
+
 
 const clock = new THREE.Clock(); // ✅ Define the clock at the top of your game.js
 
+
+
+import { ejectMass, updateEjectedMass, checkEjectedMassCollision } from './js/ejectMass.js';
+
+
+import { shootLaser, updateLasers, playerLasers } from './js/laserShots.js';
 
 
 
@@ -66,7 +72,8 @@ socket.on("updateLeaderboard", (leaderboard) => {
 
 
 
-const monsters = []; // ✅ Stores all loaded monster models
+
+
 
 
 // ✅ Create Scene
@@ -167,7 +174,7 @@ scene.add(gridHelper);
 
 // ✅ Soft Ambient Light to Remove Extreme Shadows
 // ✅ Restore Original Ambient Light (Soft & Even Lighting)
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); // ✅ Adjust intensity if needed
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // ✅ Adjust intensity if needed
 scene.add(ambientLight);
 
 
@@ -317,307 +324,9 @@ scene.traverse((child) => {
 
 
 
-import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@latest/examples/jsm/loaders/FBXLoader.js';
 
-const loader = new FBXLoader();
 
-function loadMonster(path, scale, heightOffset) {
-    const randomX = (Math.random() - 0.5) * 5000; // ✅ Random range -2500 to 2500
-    const randomZ = (Math.random() - 0.5) * 5000; // ✅ Random range -2500 to 2500
-    const randomY = heightOffset;  // ✅ Maintain height control
 
-    loader.load(path, function (fbx) {
-        fbx.scale.set(scale, scale, scale);
-        fbx.position.set(randomX, randomY, randomZ); // ✅ Randomized position
-        fbx.updateMatrixWorld(true);
-        scene.add(fbx);
-
-        console.log(`✅ FBX Loaded: ${path} at`, fbx.position);
-
-        if (fbx.animations.length > 0) {
-            console.log('🎥 Animations found:', fbx.animations);
-            const mixer = new THREE.AnimationMixer(fbx);
-            const action = mixer.clipAction(fbx.animations[0]);
-            action.play();
-            mixers.push(mixer);
-        } else {
-            console.warn(`⚠️ No animations found in ${path}`);
-        }
-
-        // ✅ Fix Glow & Materials
-      fbx.traverse((child) => {
-    if (child.isMesh) {
-        child.material.transparent = false;  // ✅ Disable transparency
-        child.material.opacity = 1;         // ✅ Fully visible
-        child.material.alphaTest = 0.1;     // ✅ Ensures no weird cutoffs
-        child.material.depthWrite = true;   // ✅ Fix depth rendering issues
-        child.material.depthTest = true;    // ✅ Proper Z-buffering
-        child.material.blending = THREE.NormalBlending;  // ✅ Remove unwanted additive blending
-
-        // ✅ Fix lighting & reflections
-        child.material.roughness = 1;  // ✅ Prevents over-reflective surfaces
-        child.material.metalness = 0;  // ✅ Remove weird metallic effects
-        child.material.emissiveIntensity = 0;  // ✅ No self-glowing textures
-        child.material.side = THREE.DoubleSide; // ✅ Ensures both sides render
-
-        child.material.needsUpdate = true;  // ✅ Apply changes
-    }
-});
-
-
-        // ✅ Store monster & add spawn time
-        monsters.push({
-            model: fbx,
-            spawnTime: Date.now(), // ✅ Track time of spawn
-            canDamage: false // ✅ Initially can't damage player
-        });
-
-        console.log(`🛸 Monster spawned at:`, fbx.position);
-
-        // ✅ Allow monster to deal damage after 10 seconds
-        setTimeout(() => {
-            monsters.forEach(monster => {
-                monster.canDamage = true;
-            });
-            console.log("🛡️ Monsters can now deal damage!");
-        }, 10000);
-    }, undefined, function (error) {
-        console.error('❌ Error loading FBX:', error);
-    });
-}
-
-
-
-
-
-// ✅ Load Each Monster With Different Sizes & Heights
-// ✅ Proper positioning
-
- loadMonster('models/UFO.fbx', 3, 10); // ✅ Large flying enemy
-
-
-
-
-
-
-
-
-
-// ✅ Monster Movement
-function moveMonsters() {
-    if (players.length === 0) return; // ✅ Prevent errors if no players exist
-
-    const speed = 3;
-    const player = players[0]; // ✅ Assume first player is the target
-
-    monsters.forEach((monster, index) => {
-        if (!monster.model) return;
-
-
-
-        const direction = new THREE.Vector3().subVectors(player.position, monster.model.position).normalize();
-        monster.model.position.addScaledVector(direction, speed);
-        monster.model.lookAt(player.position);
-
-       
-    });
-}
-
-
-
-setTimeout(() => {
-    monsters.forEach((monster, index) => {
-        console.log(`⏳ 5-SEC CHECK: Monster #${index} final position:`, monster.model.position);
-    });
-}, 5000);
-
-
-
-
-
-// ✅ Check if Monsters are Near Player
-function checkMonsterProximity(player) {
-    monsters.forEach(monsterObj => {
-        const monster = monsterObj.model; // ✅ Get actual FBX model
-        if (!monster || !player.position) return;
-
-        const distance = monster.position.distanceTo(player.position);
-
-        if (distance < 5) { 
-            console.log("⚠️ Monster is close to the player!");
-
-            if (distance < 2) {
-                console.log("💥 Monster ATTACKS!");
-            }
-        }
-    });
-}
-
-
-// ✅ Damage Player on Touch
-function checkMonsterCollision() {
-    if (players.length === 0) return;
-    const player = players[0];
-
-    monsters.forEach(monster => {
-        const distance = player.position.distanceTo(monster.model.position);
-        const playerRadius = player.size * 0.5;
-        const monsterRadius = 5;
-
-        if (distance < (playerRadius + monsterRadius)) {
-            if (!monster.canDamage) {
-                console.log("🛡️ Monster can't hurt the player yet (First 10 sec)");
-                return;
-            }
-
-            if (!player.isHit) {
-                player.size *= 0.7;
-                player.isHit = true;
-                
-                console.log("⚠️ Player was hit! New size:", player.size);
-                
-                setTimeout(() => {
-                    player.isHit = false;
-                }, 3000);
-            }
-        }
-    });
-}
-
-
-
-function updateMonsterAnimations() {
-    const player = players[0];
-
-    mixers.forEach((mixer, index) => {
-        const monster = activeMonsters[index];
-        if (player.position.distanceTo(monster.position) < 2000) {
-            mixer.update(clock.getDelta()); // ✅ Only update animations for nearby monsters
-        }
-    });
-}
-
-
-
-
-function mergeMonsters() {
-    const mergedGeometry = new THREE.BufferGeometry();
-    const mergedMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-    
-    let positions = [];
-    
-    let lastHitTime = 0;
-
-
-    
-    mergedGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    const mergedMesh = new THREE.Mesh(mergedGeometry, mergedMaterial);
-    scene.add(mergedMesh);
-}
-
-
-
-
-function moveOptimizedMonsters() {
-    if (players.length === 0) return;
-    const player = players[0];
-
-    activeMonsters.forEach(monster => {
-        const distance = player.position.distanceTo(monster.position);
-        
-        if (distance > 2000) return; // ✅ Don't move monsters too far away
-
-        const speed = 0.5; // ✅ Lower speed = fewer physics updates
-        const direction = new THREE.Vector3().subVectors(player.position, monster.position).normalize();
-        monster.position.addScaledVector(direction, speed);
-        monster.lookAt(player.position);
-    });
-}
-
-
-
-
-
-
-function removeFarMonsters() {
-    const player = players[0];
-
-    for (let i = activeMonsters.length - 1; i >= 0; i--) {
-        if (player.position.distanceTo(activeMonsters[i].position) > 3000) {
-            scene.remove(activeMonsters[i]);
-            activeMonsters.splice(i, 1);
-            console.log("🗑️ Removed distant monster to save performance!");
-        }
-    }
-}
-
-
-
-
-
-
-
-
-const activeMonsters = [];
-
-function loadOptimizedMonster(path, scale, heightOffset) {
-    loader.load(path, function (fbx) {
-        fbx.scale.set(scale, scale, scale);
-        fbx.position.set(
-            (Math.random() - 0.5) * 5000,
-            heightOffset,
-            (Math.random() - 0.5) * 5000
-        );
-
-        scene.add(fbx);
-        activeMonsters.push(fbx);
-
-        // ✅ Play only one animation instead of all
-        if (fbx.animations.length > 0) {
-            const mixer = new THREE.AnimationMixer(fbx);
-            const action = mixer.clipAction(fbx.animations[0]);
-            action.play();
-            mixers.push(mixer);
-        }
-
-        // ✅ Limit number of active monsters
-        if (activeMonsters.length > 10) {
-            let removed = activeMonsters.shift();
-            scene.remove(removed);
-        }
-    });
-}
-
-
-
-
-
-
-
-
-
-const monsterGeometry = new THREE.SphereGeometry(5, 16, 16); // ✅ Simple shape for monsters
-const monsterMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-const maxMonsters = 10; // ✅ Limit number of active monsters
-const monsterMesh = new THREE.InstancedMesh(monsterGeometry, monsterMaterial, maxMonsters);
-scene.add(monsterMesh);
-
-let monsterPositions = [];
-
-function spawnOptimizedMonsters() {
-    for (let i = 0; i < maxMonsters; i++) {
-        const randomX = (Math.random() - 0.5) * 5000;
-        const randomZ = (Math.random() - 0.5) * 5000;
-        const randomY = 5;
-        monsterPositions.push(new THREE.Vector3(randomX, randomY, randomZ));
-
-        let matrix = new THREE.Matrix4();
-        matrix.setPosition(randomX, randomY, randomZ);
-        monsterMesh.setMatrixAt(i, matrix);
-    }
-    monsterMesh.instanceMatrix.needsUpdate = true;
-}
-spawnOptimizedMonsters();
 
 
 
@@ -707,11 +416,20 @@ function getMouseWorldPosition(event) {
     return camera.position.clone().add(dir.multiplyScalar(distance));
 }
 
-// ✅ Update targetPosition only when the mouse moves
+
+
+// ✅ Stores the last movement direction (Default: Right)
+let moveDirection = new THREE.Vector3(1, 0, 0); 
+
 document.addEventListener('mousemove', (event) => {
     targetPosition = getMouseWorldPosition(event);
     lastMouseTime = Date.now();
     mouseIsMoving = true;
+
+    // ✅ Update direction when mouse moves
+    if (targetPosition) {
+        moveDirection.copy(targetPosition.clone().sub(players[0].position).normalize());
+    }
 });
 
 
@@ -785,7 +503,7 @@ function checkFoodCollision() {
             let absorptionRadius = player.size * 3;
 
             if (distance < absorptionRadius) {
-                foodPos.lerp(player.position, 0.5);
+                foodPos.lerp(player.position, 0.5); // Pull food toward player
 
                 if (distance < player.size * 1.3) {
                     let growthFactor = 1 / (1 + player.size * 0.01);
@@ -807,7 +525,7 @@ function checkFoodCollision() {
                         foodPositions.set(key, newFoodPos);
                         foodMesh.setMatrixAt(key, new THREE.Matrix4().setPosition(newFoodPos.x, newFoodPos.y, newFoodPos.z));
                         foodMesh.instanceMatrix.needsUpdate = true; // ✅ Update mesh
-                    }, 10000); // ✅ 10 seconds delay
+                    }, 10000);
                 } else {
                     updatedFoodPositions.set(key, foodPos);
                 }
@@ -872,46 +590,8 @@ function mergePlayers() {
     players = players.filter(p => !mergedPlayers.includes(p));
 }
 
-// ✅ Food Shooting Function
-function shootFood(player) {
-    if (player.size <= 70) {
-        console.log('Spieler muss größer als 70 sein, um Essen zu schießen!');
-        return;
-    }
 
-    let foodSize = 5;  // doppelte Größe des normalen Futters
 
-    player.size -= foodSize / 2;  // Reduziere die Spielergröße
-
-    const projectileMaterial = new THREE.MeshBasicMaterial({
-        map: playerTexture,
-        transparent: true,
-    });
-
-    let projectileGeometry = new THREE.PlaneGeometry(foodSize, foodSize);
-    let projectileMesh = new THREE.Mesh(projectileGeometry, projectileMaterial);
-
-    projectileMesh.position.copy(player.position);
-    projectileMesh.rotation.x = -Math.PI / 2;  // Flach auf der Karte liegend
-    projectileMesh.renderOrder = 1; // Projektile werden nach dem Grid gerendert
-    scene.add(projectileMesh);
-
-    // Berechne die Abschussrichtung
-    let direction = targetPosition.clone().sub(player.position).normalize();
-    const shootSpeed = 50;
-    direction.multiplyScalar(shootSpeed);
-
-    // Speichere Richtung, Geschwindigkeit und Größe im Mesh
-    projectileMesh.userData = {
-        direction: direction,
-        initialSpeed: shootSpeed,
-        size: foodSize
-    };
-
-    foodProjectiles.push(projectileMesh);
-
-    console.log('Essen geschossen!');
-}
 
 // ✅ Check Projectile Collision
 function checkProjectileCollision() {
@@ -930,6 +610,48 @@ function checkProjectileCollision() {
     }
 }
 
+
+
+
+
+
+
+// ✅ Final Fix - Continuous Movement Without Stuttering
+function updatePlayerMovement() {
+    for (let player of players) {
+        const currentTime = Date.now();
+        const timeSinceLastMouseMove = currentTime - lastMouseTime;
+
+        // ✅ Keep moving in the last direction, even if mouse stops
+        if (timeSinceLastMouseMove > 100) {
+            mouseIsMoving = false;
+        }
+
+        let speedFactor = moveSpeed * (player.size / 20);
+        let newPosition = player.position.clone().add(moveDirection.clone().multiplyScalar(speedFactor));
+
+        // ✅ Prevent movement outside map edges
+        let halfGrid = gridSize / 2;
+        newPosition.x = THREE.MathUtils.clamp(newPosition.x, -halfGrid, halfGrid);
+        newPosition.z = THREE.MathUtils.clamp(newPosition.z, -halfGrid, halfGrid);
+
+        player.position.copy(newPosition);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ✅ Animation Loop (mit HUD-Update)
 // ✅ Animation Loop (No Movement Freeze)
 function animate() {
@@ -940,24 +662,21 @@ function animate() {
     const delta = clock.getDelta();  // ✅ Correctly use clock
     const currentTime = clock.getElapsedTime(); // ✅ Correctly define currentTime
 
-    // ✅ Update animations
-    mixers.forEach(mixer => mixer.update(delta));
+    updatePlayerMovement();   
 
 
-    if (monsters.length > 0) {  // ✅ Only move monsters if they exist
-        moveMonsters();
-        checkMonsterProximity(players[0]);
-    }
+    updateLasers(scene, players);
 
 
-    // ✅ Move monsters
-    moveMonsters();
-    checkMonsterProximity(players[0]); // Make sure players[0] exists before calling
     
-    checkMonsterCollision(); // ✅ Checks every frame
-    moveOptimizedMonsters();
-    removeFarMonsters();
+    updateEjectedMass(); // ✅ Move ejected food
+    checkEjectedMassCollision(players, scene); // ✅ Check if players eat food
+        
 
+
+    
+
+  
     updateGrowth();
 
       // ✅ Rotate ONLY the player skin (PNG)
@@ -965,28 +684,10 @@ function animate() {
         playerMaterial.map.rotation += 0.02; // Adjust speed for rotation
     }
     
-    // ✅ Stop movement if no mouse movement for 500ms
-    if (currentTime - lastMouseTime > 500) {
-        mouseIsMoving = false;
-    }
-
- for (let player of players) {
     
 
-    const currentTime = Date.now();
-    const timeSinceLastMouseMove = currentTime - lastMouseTime;
 
-    if (mouseIsMoving && targetPosition) {
-        let slowDownFactor = Math.max(0.1, 1 - (timeSinceLastMouseMove / 2000)); // ✅ Always a small movement
-        const direction = targetPosition.clone().sub(player.position).normalize();
-        player.position.add(direction.multiplyScalar(moveSpeed * (player.size / 20) * slowDownFactor));
-    }
 
-    // ✅ Completely stop movement if idle for 3 seconds
-    if (timeSinceLastMouseMove > 3000) {
-        mouseIsMoving = false;
-    }
-}
 
 
 
@@ -1132,6 +833,7 @@ players.forEach(player => {
     } else {
         player.visible = true; // ✅ Show nearby players
     }
+    playerLasers.set(player, 3); // Give each player 3 shots at the start
 });
 
 
@@ -1145,17 +847,117 @@ players.forEach(player => {
 
 
 
-
-
-// ✅ Key Event Listener
 document.addEventListener('keydown', (event) => {
-    if (event.key === ' ' && players.length > 0) {
-        splitPlayer(players[0]);
-    }
-    if (event.key === 'w' && players.length > 0) {
-        shootFood(players[0]);
+    if (event.key === 'e' && players.length > 0) {
+        shootLaser(players[0], scene, targetPosition);
     }
 });
+
+
+
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'w' && players.length > 0) {
+        ejectMass(players[0], scene, foodMaterial);
+    }
+});
+
+
+
+
+
+
+
+
+
+
+import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@latest/examples/jsm/loaders/FBXLoader.js';
+
+const loader = new FBXLoader();
+
+// ✅ Use the already existing `foodHeight` variable
+console.log("🔥 Using foodHeight:", foodHeight); // Debug to check the value
+
+function loadObject(path, scale) {
+    let position = new THREE.Vector3(
+        (Math.random() - 0.5) * gridSize,  
+        foodHeight,  
+        (Math.random() - 0.5) * gridSize   
+    );
+
+    loader.load(path, function (fbx) {
+        fbx.scale.set(scale, scale, scale);
+        fbx.position.copy(position);
+        fbx.updateMatrixWorld(true);
+
+        // ✅ Better Glow on Ground with More Visibility
+        fbx.traverse((child) => {
+            if (child.isMesh) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(0.3, 0.9, 1), // ✅ Same color as food
+                    roughness: 0.2,  
+                    metalness: 0.1,  
+                    emissive: new THREE.Color(0.3, 0.9, 1), // ✅ Exact food color
+                    emissiveIntensity: 0.6 // 🔥 More visible glow (Adjust this)
+                });
+
+                child.castShadow = false;
+                child.receiveShadow = false;
+            }
+        });
+
+        scene.add(fbx);
+        console.log(`✅ Object Loaded: ${path} at`, fbx.position);
+    }, undefined, function (error) {
+        console.error('❌ Error loading FBX:', error);
+    });
+}
+
+
+
+
+const objectPositions = []; // ✅ Stores placed positions
+let objectsPlaced = false; // ✅ Prevent multiple calls
+
+function placeStaticObjects() {
+    if (objectsPlaced) return; // ✅ Prevent duplicate spawning
+    objectsPlaced = true;
+
+    let maxObjects = 100;
+    let minDistance = 800; // ✅ Minimum distance between objects
+
+    while (objectPositions.length < maxObjects) {
+        let randomX = (Math.random() - 0.5) * gridSize;
+        let randomZ = (Math.random() - 0.5) * gridSize;
+        
+        let newPosition = new THREE.Vector3(randomX, foodHeight, randomZ); // ✅ Exact same height as food
+
+        // ✅ Ensure objects don't spawn too close to each other
+        let tooClose = objectPositions.some(pos => pos.distanceTo(newPosition) < minDistance);
+        if (!tooClose) {
+            loadObject('models/crystalBLUE.fbx', 70);  // ✅ Corrected function call
+            objectPositions.push(newPosition);
+        }
+    }
+}
+
+placeStaticObjects(); // ✅ Call function once
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

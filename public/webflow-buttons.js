@@ -37,6 +37,53 @@ document.getElementById("register-btn").addEventListener("click", async () => {
     }
 });
 
+
+
+
+
+
+
+
+
+
+// ✅ Register Button - Show Popup
+document.getElementById("register-btn").addEventListener("click", () => {
+    document.getElementById("popup-reg").style.display = "flex"; // Show Register Popup
+    document.getElementById("popup-reg").style.zIndex = "99999"; // Ensure it’s on top
+});
+
+// ❌ Close Register Popup
+document.getElementById("close-register-popup").addEventListener("click", () => {
+    document.getElementById("popup-reg").style.display = "none"; // Hide it
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ✅ Deposit Button
 document.getElementById("deposit-btn").addEventListener("click", async () => {
     if (!window.solana) {
