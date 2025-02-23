@@ -1,106 +1,113 @@
 import { io } from "https://cdn.jsdelivr.net/npm/socket.io-client@4.5.4/dist/socket.io.esm.min.js";
 
+// Connect to WebSocket Server
 export const socket = io("https://psolgame-e77454844bbd.herokuapp.com/");
 
+// Global variables
 let players = {};
 let currentPlayer = null;
+let isInWaitingRoom = false; // ✅ Prevent immediate game start
+let isGameStarting = false; // ✅ Prevents double game start
 
 document.addEventListener("DOMContentLoaded", () => {
-    initializeMultiplayer();
+  initializeMultiplayer();
 
-    const startButton = document.getElementById("startGameButton");
-    if (startButton) {
-        startButton.addEventListener("click", () => {
-            let usernameInput = document.getElementById("username").value.trim();
-            if (!usernameInput) {
-                alert("Please enter a username!");
-                return;
-            }
+  // Find Free-to-Play Join Button
+  const freeJoinButton = document.getElementById("freeJoinButton");
+  if (freeJoinButton) {
+    freeJoinButton.addEventListener("click", (e) => {
+      e.preventDefault(); // Prevent form submission
 
-            // ✅ Store name correctly
-            localStorage.setItem("playerName", usernameInput);
+      const usernameInput = document.getElementById("freeUsernameInput");
+      if (!usernameInput) {
+        console.error("❌ ERROR: 'freeUsernameInput' not found!");
+        return;
+      }
 
-            console.log(`📨 Sending playerJoin event with username: "${usernameInput}"`);
+      let username = usernameInput.value.trim();
+      if (!username) {
+        alert("⚠️ Please enter a username!");
+        return;
+      }
 
-            // ✅ Emit event with correct username
-            socket.emit("playerJoin", { username: usernameInput });
-        });
-    } else {
-        console.error("❌ ERROR: 'startGameButton' not found in the document!");
-    }
+      console.log(`📨 Sending playerJoin event with username: "${username}"`);
+
+      // ✅ Store username locally
+      localStorage.setItem("playerName", username);
+
+      // ✅ Ensure player stays in waiting room (prevent auto-start)
+      isInWaitingRoom = true;
+
+      // ✅ Send request to join waiting room
+      socket.emit("playerJoin", { username });
+
+      // ✅ Show waiting room UI
+      const waitingPopup = document.getElementById("freeWaitingPopup");
+      if (waitingPopup) {
+        waitingPopup.style.display = "block";
+      }
+    });
+  } else {
+    console.error("❌ ERROR: 'freeJoinButton' not found!");
+  }
 });
 
+// ✅ Ensure game starts only after enough players are in the waiting room
 function initializeMultiplayer() {
-    let username = localStorage.getItem("playerName");
+  socket.on("waitingRoomUpdate", (waitingPlayers) => {
+    console.log("🕐 Waiting Room Updated:", waitingPlayers);
 
-    if (!username) return;
+    let waitingList = document.getElementById("freeWaitingList");
+    if (waitingList) {
+      waitingList.innerHTML = waitingPlayers.map(p => `<li>${p.name}</li>`).join("");
+    }
 
-    username = username.trim();
-    console.log(`📝 Retrieved Name from Storage: "${username}"`);
+    // ✅ Ensure the UI remains open
+    const waitingPopup = document.getElementById("freeWaitingPopup");
+    if (waitingPopup) {
+      waitingPopup.style.display = "block";
+    }
+  });
 
-    // ✅ Send the correct username stored in localStorage
-    socket.emit("playerJoin", { username });
+  // ✅ Ensure the game does NOT start immediately
+  socket.on("startGameCountdown", (countdown) => {
+    console.log(`⏳ Game starting in ${countdown} seconds...`);
+    document.getElementById("waiting-room-countdown").innerText = `Game starts in ${countdown} seconds...`;
+  });
 
-    socket.on("waitingRoomUpdate", (waitingPlayers) => {
-        console.log("🕐 Waiting Room Updated:", waitingPlayers);
+  // ✅ Prevent Immediate Game Start
+  socket.on("gameStart", (data) => {
+    if (!isInWaitingRoom || isGameStarting) return; // ✅ Prevents multiple game starts
+    isGameStarting = true;
 
-        let waitingList = document.getElementById("waiting-room-list");
-        if (waitingList) {
-            waitingList.innerHTML = waitingPlayers.map(p => `<li>${p.name}</li>`).join("");
-        }
+    console.log("🚀 Game started!");
 
-        document.getElementById("waiting-room").style.display = "block"; // ✅ Show waiting room
-    });
+    // Hide Waiting Room UI
+    const waitingPopup = document.getElementById("freeWaitingPopup");
+    if (waitingPopup) {
+      waitingPopup.style.display = "none";
+    }
 
-    socket.on("gameStart", (data) => {
-        document.getElementById("waiting-room").style.display = "none"; // ✅ Hide waiting room
-        document.getElementById("gameCanvas").style.display = "block"; // ✅ Show game
-        console.log("🚀 Game started!");
+    // Show Game Canvas
+    const gameCanvas = document.getElementById("gameCanvas");
+    if (gameCanvas) {
+      gameCanvas.style.display = "block";
+    }
 
-        players = data;
-        if (players[socket.id]) {
-            currentPlayer = players[socket.id];
-            console.log(`✅ You are playing as: ${currentPlayer.name}, Skin: ${currentPlayer.skin}`);
-        }
+    players = data.players;
+    if (players[socket.id]) {
+      currentPlayer = players[socket.id];
+      console.log(`✅ You are playing as: ${currentPlayer.name}, Skin: ${currentPlayer.skin}`);
+    }
 
-        renderPlayers();
-    });
-
-    socket.on("newPlayer", (player) => {
-        console.log(`🟢 New player joined: ${player.name}`);
-        players[player.id] = player;
-        renderPlayers();
-    });
-
-    socket.on("updatePlayers", (playersData) => {
-        players = playersData;
-        renderPlayers();
-    });
-
-    socket.on("updateLeaderboard", (leaderboard) => {
-        console.log("📊 Updating Leaderboard:", leaderboard);
-        updateLeaderboardUI(leaderboard);
-    });
-
-    socket.on("removePlayer", (playerId) => {
-        console.log(`❌ Removing player: ${playerId}`);
-        delete players[playerId];
-        renderPlayers();
-    });
+    renderPlayers();
+  });
 }
 
-function updateLeaderboardUI(leaderboard) {
-    let leaderboardElement = document.getElementById("leaderboard-list");
-    if (!leaderboardElement) return;
-
-    leaderboardElement.innerHTML = leaderboard
-        .map((player, index) => `<li>#${index + 1}: ${player.name} - ${player.score}</li>`)
-        .join("");
-}
-
+// ✅ Render Players in Console for Debugging
 function renderPlayers() {
-    console.log("🔄 Rendering players...");
-    Object.values(players).forEach(player => {
-        console.log(`🔹 Player: ${player.name} at X: ${player.x}, Z: ${player.z}`);
-    });
+  console.log("🔄 Rendering players...");
+  Object.values(players).forEach(player => {
+    console.log(`🔹 Player: ${player.name} at X: ${player.x}, Z: ${player.z}`);
+  });
 }

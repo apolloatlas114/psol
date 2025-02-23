@@ -25,8 +25,8 @@ canvas {
 /* HUD Styling */
 .hud {
     position: absolute;
-    color: #FF0099; /* Exakte Farbe aus Lazer84 */
-    font-family: 'Lazer84', sans-serif;
+    color: #FF0099;
+    font-family: 'Lazer84', 'OldComputer', monospace;
     font-size: 32px;
     text-shadow: -3px 3px 0px #230047, -6px 6px 0px #120023;
     text-transform: uppercase;
@@ -34,12 +34,12 @@ canvas {
 
 /* 🔥 Color Fix: Labels match "TOP10" */
 .hud-label {
-    color: #FF0099 !important; /* 🔥 Now "TIME:", "SCORE:", "POOL:" match "TOP10" */
+    color: #FF0099 !important;
 }
 
 /* ⬜️ Numbers (white color fix) */
 .hud-value {
-    color: white !important;  /* 🔥 Numbers stay white */
+    color: white !important;
 }
 
 /* 🔽 Score (unten links) */
@@ -62,8 +62,8 @@ canvas {
     left: 0;
     width: 100vw;
     height: 100vh;
-    z-index: 10; /* Muss über dem Canvas sein */
-    pointer-events: none; /* Verhindert, dass das HUD Klicks blockiert */
+    z-index: 10;
+    pointer-events: none;
 }
 
 /* 🔽 Pool Money (unten rechts) */
@@ -74,42 +74,32 @@ canvas {
 }
 
 /* 🔼 Leaderboard (oben rechts) */
-/* 🏆 Leaderboard Container */
 #leaderboard {
     position: absolute;
     top: 10px;
     right: 32px;
     color: #FF0099;
-    font-family: 'Lazer84', sans-serif;  /* ✅ Keep original font */
+    font-family: 'Lazer84', monospace;
     text-align: right;
-    font-size: 18px;  /* ✅ Ensure readability */
+    font-size: 18px;
 }
 
-/* 🎮 Leaderboard Player Names */
 #leaderboard-list {
-     
-    font-size: 16px;  /* ✅ Adjusted for better visibility */
-    color: white;
-    
     list-style: none;
     padding: 0;
     margin: 0;
+    font-size: 16px;
+    color: white;
 }
 
 /* ⭐ Highlight Current Player in Gold */
 #leaderboard-list .current-player {
-    color: #FFD700; /* Gold */
+    color: #FFD700;
     font-weight: bold;
 }
-
-
-
-
 
 /* 🎮 Spezielles Old-School Font */
 @font-face {
     font-family: 'OldComputer';
     src: url('fonts/old_computer.ttf') format('truetype');
 }
-
-

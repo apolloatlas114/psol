@@ -869,40 +869,78 @@ document.addEventListener('keydown', (event) => {
 
 
 
-
-
 import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@latest/examples/jsm/loaders/FBXLoader.js';
+import { TextureLoader } from 'https://cdn.jsdelivr.net/npm/three@latest/build/three.module.js';
 
 const loader = new FBXLoader();
 
-// ✅ Use the already existing `foodHeight` variable
-console.log("🔥 Using foodHeight:", foodHeight); // Debug to check the value
 
-function loadObject(path, scale) {
-    let position = new THREE.Vector3(
-        (Math.random() - 0.5) * gridSize,  
-        foodHeight,  
-        (Math.random() - 0.5) * gridSize   
-    );
+// ✅ Load Runestone Textures
+const diffuseMap = textureLoader.load('textures/Diffuse_cristal.jpg');
+const normalMap = textureLoader.load('textures/Normal_cristal.jpg');
+const emissiveMap = textureLoader.load('textures/Emission_cristal.jpg');
+const specularMap = textureLoader.load('textures/Specular_cristal.jpg');
+const aoMap = textureLoader.load('textures/Occlusion_cristal.jpg');
 
+// ✅ Load Stone Base Textures
+const stoneDiffuse = textureLoader.load('textures/Diffuse_stone.jpg');
+const stoneNormal = textureLoader.load('textures/Normal_stone.jpg');
+const stoneAO = textureLoader.load('textures/Occlusion_stone.jpg');
+const stoneEmission = textureLoader.load('textures/Emission_stone.jpg');
+
+// ✅ Function to Load Object Models
+function loadObject(path, scale, position, isRunestone = false) {
     loader.load(path, function (fbx) {
         fbx.scale.set(scale, scale, scale);
         fbx.position.copy(position);
         fbx.updateMatrixWorld(true);
 
-        // ✅ Better Glow on Ground with More Visibility
         fbx.traverse((child) => {
             if (child.isMesh) {
-                child.material = new THREE.MeshStandardMaterial({
-                    color: new THREE.Color(0.3, 0.9, 1), // ✅ Same color as food
-                    roughness: 0.2,  
-                    metalness: 0.1,  
-                    emissive: new THREE.Color(0.3, 0.9, 1), // ✅ Exact food color
-                    emissiveIntensity: 0.6 // 🔥 More visible glow (Adjust this)
-                });
+                if (isRunestone) {
+                    // 🟢 Special Runestone Material
+                    if (child.name.toLowerCase().includes("crystal")) {
+                        // 💎 Blue Glowing Crystal (Glass-like)
+                        child.material = new THREE.MeshPhysicalMaterial({
+                            map: diffuseMap,
+                            normalMap: normalMap,
+                            emissiveMap: emissiveMap,
+                            emissive: new THREE.Color(0.3, 0.8, 1), // **Blue Glow**
+                            emissiveIntensity: 50.0,
+                            roughness: 0.1,
+                            metalness: 0.2,
+                            transmission: 10.9, // **Glass-like transparency**
+                            thickness: 10,
+                            clearcoat: 1,
+                            clearcoatRoughness: 0.1,
+                            transparent: true
+                        });
+                    } else {
+                        // 🗿 Stone Base with Glowing Runes
+                        child.material = new THREE.MeshStandardMaterial({
+                            map: stoneDiffuse,
+                            normalMap: stoneNormal,
+                            aoMap: stoneAO,
+                            emissiveMap: stoneEmission,
+                            emissive: new THREE.Color(0.1, 0.4, 0.8), // **Soft blue glow**
+                            emissiveIntensity: 10.5,
+                            roughness: 0.8,
+                            metalness: 0.3
+                        });
+                    }
+                } else {
+                    // 🔷 Normal Crystal Settings
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: new THREE.Color(0.3, 0.9, 1), // **Same color as food**
+                        roughness: 0.2,  
+                        metalness: 0.1,  
+                        emissive: new THREE.Color(0.3, 0.9, 1), // **Exact food color**
+                        emissiveIntensity: 0.6 // 🔥 More visible glow
+                    });
+                }
 
-                child.castShadow = false;
-                child.receiveShadow = false;
+                child.castShadow = true;
+                child.receiveShadow = true;
             }
         });
 
@@ -913,94 +951,95 @@ function loadObject(path, scale) {
     });
 }
 
+// ✅ Store object positions to avoid overlap
+const objectPositions = [];
+let objectsPlaced = false;
 
+// ✅ **Load Runestone FIRST**
+const runestonePosition = new THREE.Vector3(0, foodHeight, 0);
+loadObject('models/Runestone.fbx', 100, runestonePosition, true);
 
+// ✅ Define different object types with settings
+const objectTypes = [
+    { path: 'models/crystalBLUE.fbx', scale: 70, maxCount: 50, minDistance: 800 }, // 🔹 Normal Crystal
+];
 
-const objectPositions = []; // ✅ Stores placed positions
-let objectsPlaced = false; // ✅ Prevent multiple calls
-
+// ✅ Function to place static objects
 function placeStaticObjects() {
-    if (objectsPlaced) return; // ✅ Prevent duplicate spawning
+    if (objectsPlaced) return; // Prevent duplicate spawning
     objectsPlaced = true;
 
-    let maxObjects = 100;
-    let minDistance = 800; // ✅ Minimum distance between objects
+    objectTypes.forEach((objType) => {
+        let placedObjects = 0;
 
-    while (objectPositions.length < maxObjects) {
-        let randomX = (Math.random() - 0.5) * gridSize;
-        let randomZ = (Math.random() - 0.5) * gridSize;
-        
-        let newPosition = new THREE.Vector3(randomX, foodHeight, randomZ); // ✅ Exact same height as food
+        while (placedObjects < objType.maxCount) {
+            let randomX = (Math.random() - 0.5) * gridSize;
+            let randomZ = (Math.random() - 0.5) * gridSize;
+            
+            let newPosition = new THREE.Vector3(randomX, foodHeight, randomZ);
 
-        // ✅ Ensure objects don't spawn too close to each other
-        let tooClose = objectPositions.some(pos => pos.distanceTo(newPosition) < minDistance);
-        if (!tooClose) {
-            loadObject('models/crystalBLUE.fbx', 70);  // ✅ Corrected function call
-            objectPositions.push(newPosition);
+            // Ensure objects don't spawn too close to each other
+            let tooClose = objectPositions.some(pos => pos.distanceTo(newPosition) < objType.minDistance);
+            if (!tooClose) {
+                loadObject(objType.path, objType.scale, newPosition);
+                objectPositions.push(newPosition);
+                placedObjects++;
+            }
         }
-    }
-}
-
-placeStaticObjects(); // ✅ Call function once
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-function createPlayer(size, position, isSplit = false) {
-    console.log('📌 Erstelle Spieler mit Position:', position);
-
-    const playerMaterial = new THREE.MeshStandardMaterial({
-        map: playerTexture,
-        transparent: true,
-        metalness: 0.1,  // ✅ Lower metallic effect to keep texture original
-        roughness: 0.3,  // ✅ Balanced shine
-        emissive: new THREE.Color(0, 0, 0), // ✅ No blue tint
-        emissiveIntensity: 0, // ✅ Remove unwanted glow
-        side: THREE.DoubleSide, // Ensure both sides of the plane are visible
     });
-
-    const scaleFactor = 2.5;
-    const playerGeometry = new THREE.PlaneGeometry(size * scaleFactor, size * scaleFactor);
-
-    // ✅ Center the geometry based on the image's perceived center
-    // Assuming your image's center is at (0, size * 0.75)
-    // You might need to adjust 0.75 to match your specific image
-    playerGeometry.translate(0, size * 0.75, 0); // Adjust this value
-
-    const player = new THREE.Mesh(playerGeometry, playerMaterial);
-
-    player.position.copy(position);
-    player.position.y += 2; // ✅ Move player slightly up to avoid clipping
-
-    player.size = size;
-    player.rotation.x = -Math.PI / 2;
-
-    //  // ✅ Ensures player always faces the camera
-    
-
-    player.isSplit = isSplit;
-    player.renderOrder = -1;
-
-    scene.add(player);
-    players.push(player);
-    return player;
 }
+
+// ✅ Call function once
+placeStaticObjects();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function createPlayer(size, position, isSplit = false, skin) {
+  const materialOptions = {
+    map: skin ? textureLoader.load(skin) : playerTexture,
+    transparent: true,
+    metalness: 0.1,
+    roughness: 0.3,
+    emissive: new THREE.Color(0, 0, 0),
+    emissiveIntensity: 0,
+    side: THREE.DoubleSide,
+  };
+  const playerMaterial = new THREE.MeshStandardMaterial(materialOptions);
+  
+  const scaleFactor = 2.5;
+  const playerGeometry = new THREE.PlaneGeometry(size * scaleFactor, size * scaleFactor);
+  playerGeometry.translate(0, size * 0.75, 0);
+  
+  const player = new THREE.Mesh(playerGeometry, playerMaterial);
+  player.position.copy(position);
+  player.position.y += 2;
+  player.size = size;
+  player.rotation.x = -Math.PI / 2;
+  player.isSplit = isSplit;
+  player.renderOrder = -1;
+  
+  scene.add(player);
+  players.push(player);
+  return player;
+}
+
+
 
 
 function updateHUD() {
@@ -1022,7 +1061,25 @@ setInterval(checkGameEnd, 1000);
 
 
 // ✅ Spieler wird NUR EINMAL erstellt, nicht in der Funktion selbst
-createPlayer(40, new THREE.Vector3(0, 40, 0));
+function loadPlayersFromLobby() {
+  const data = localStorage.getItem("gameData");
+  if (!data) {
+    console.error("No game data found. Cannot load players.");
+    return;
+  }
+  const playersData = JSON.parse(data);
+  // Clear existing players array:
+  players = [];
+  playersData.forEach((p) => {
+    // Use the skin provided by the server.
+    createPlayer(p.size || 40, new THREE.Vector3(p.x, 40, p.z), false, p.skin);
+  });
+}
+
+// Call this function once the game page is loaded.
+window.addEventListener("DOMContentLoaded", loadPlayersFromLobby);
+
+
 
 // ✅ Fenster-Resize-Handler
 window.addEventListener('resize', () => {
