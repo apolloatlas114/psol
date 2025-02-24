@@ -1,3 +1,4 @@
+// ===================== PART 1 =====================
 import dotenv from "dotenv";
 import express from "express";
 import http from "http";
@@ -17,7 +18,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-
+// ===================== PART 2 =====================
 // --- CORS & Middleware ---
 app.use(cors({
   origin: ["https://gaming-dashboard.webflow.io", "http://localhost:5000"],
@@ -32,13 +33,17 @@ app.use(express.static(path.join(__dirname, "public"), { extensions: ["html", "c
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-}).then(() => console.log("✅ MongoDB Connected"))
+})
+  .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// --- API Routes & Rate Limiting ---
+// ===================== PART 3 =====================
+// --- API Routes ---
 app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/prize", prizeRoutes);
+
+// --- Rate Limiting ---
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
@@ -48,16 +53,12 @@ app.use("/api/buyin", apiLimiter);
 app.use("/api/payout", apiLimiter);
 
 // --- Serve the Game Page ---
-// Your game page (index.html) is served at the root:
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-/* ================================
-   COLYSEUS-INSPIRED LOBBY LOGIC
-   ================================ */
-// We’ll use Socket.IO here to mimic a Colyseus-like lobby for now.
-// (In a full Colyseus integration you would use the Colyseus Room API.)
+
+// ===================== PART 4 =====================
 import { Server as IOServer } from "socket.io";
 const io = new IOServer(server, {
   cors: {
@@ -67,7 +68,7 @@ const io = new IOServer(server, {
   }
 });
 
-// Use Maps for robust state.
+// Use Maps for robust state management.
 const minPlayersToStart = 2;
 const countdownTime = 5;
 let waitingRoom = new Map();
@@ -75,12 +76,12 @@ let isGameStarting = false;
 let countdownInterval = null;
 let connectedPlayers = new Map();
 let leaderboard = [];
-let players = []; // For game state later.
+let players = []; // (For in-game state if needed later)
 
 io.on("connection", (socket) => {
   console.log(`🟢 Player connected: ${socket.id}`);
 
-  // Immediately send current waiting room state to the new connection.
+  // Immediately send the current waiting room state to the new connection.
   socket.emit("waitingRoomUpdate", Array.from(waitingRoom.values()));
   console.log("Emitting current waiting room:", Array.from(waitingRoom.values()));
 
@@ -210,5 +211,9 @@ function updateLeaderboard() {
   console.log("🏆 New Leaderboard Data:", leaderboard);
 }
 
+
+// ===================== PART 5 =====================
+// --- Start the Server ---
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+
