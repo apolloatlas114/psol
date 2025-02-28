@@ -5,16 +5,16 @@ import { ejectMass, updateEjectedMass, checkEjectedMassCollision } from './js/ej
 import { shootLaser, updateLasers, playerLasers } from './js/laserShots.js';
 import { socket } from './multiplayer.js';
 
-// --- Global Variables & Clock ---
+// --- Globale Variablen & Clock ---
 const clock = new THREE.Clock();
-let players = [];         // Array to hold player meshes
+let players = [];         // Array für individuelle Spieler-Meshes
 let foodProjectiles = [];
 let splitCooldown = 10000; // in ms
 let lastSplitTime = 0;
 let canSplit = true;
-let endTime = Date.now() + 20 * 60 * 1000; // 20-minute timer
+let endTime = Date.now() + 20 * 60 * 1000; // 20 Minuten Timer
 
-// Movement variables
+// Bewegungsvariablen
 let moveSpeed = 20;
 let baseSpeed = 20;
 let targetPosition = null;
@@ -22,10 +22,12 @@ let lastMouseTime = Date.now();
 let mouseIsMoving = false;
 let moveDirection = new THREE.Vector3(1, 0, 0);
 
-// --- Socket Listeners ---
+// --- Socket Listener für Score-Updates ---
 socket.on("updateScore", ({ id, score }) => {
-    if (players[id]) {
-        players[id].score = score;
+    // Suche im players-Array den Spieler mit passender playerId
+    const playerMesh = players.find(p => p.playerId === id);
+    if (playerMesh) {
+        playerMesh.score = score;
     }
     updateHUD();
 });
@@ -41,16 +43,15 @@ socket.on("updateLeaderboard", (leaderboard) => {
         } else {
             listItem.innerHTML = `#${index + 1}: <span class="player-name">UNKNOWN</span> - <span class="player-score">${Math.floor(player.score)}</span>`;
         }
-        if (player.id === socket.id) {
-            listItem.classList.add("current-player");
-        }
+        // Falls nötig: Hier könnte man den lokalen Spieler hervorheben
         leaderboardElement.appendChild(listItem);
     });
     console.log("✅ Leaderboard updated successfully!");
 });
 
+
 // ===================== PART 2 =====================
-// --- Scene & Renderer Setup ---
+// --- Szenen- und Renderer-Setup ---
 const scene = new THREE.Scene();
 console.log('✅ Scene successfully created!');
 console.log('✅ THREE.js loaded:', THREE);
@@ -70,13 +71,13 @@ function initRenderer() {
 }
 initRenderer();
 
-// --- Camera Setup ---
+// --- Kamera-Setup ---
 const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 50000);
 camera.position.set(0, 10, 10);
 camera.lookAt(0, 0, 0);
 console.log('✅ Camera created:', camera);
 
-// --- Camera Rotation Variables ---
+// --- Kamera-Rotationsvariablen (falls benötigt) ---
 let cameraYaw = 0;
 const cameraRotateSpeed = 0.03;
 let rotatingLeft = false;
@@ -126,7 +127,7 @@ ground.position.y = -35;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// --- Player Texture ---
+// --- Spieler-Textur ---
 const playerTexture = textureLoader.load('textures/playerSkinredalien1.png', (texture) => {
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -137,47 +138,19 @@ const playerTexture = textureLoader.load('textures/playerSkinredalien1.png', (te
     texture.center.set(0.5, 0.5);
 });
 
-// --- Scene Traverse ---
+// --- Scene Traverse (optional für Frustum Culling) ---
 scene.traverse((child) => {
     if (child.isMesh) {
         child.frustumCulled = true;
     }
 });
 
+
 // ===================== PART 4 =====================
-// --- InstancedMesh for Players ---
-const playerGeometry = new THREE.PlaneGeometry(50, 50);
-const uvs = playerGeometry.attributes.uv.array;
-uvs[0] = 0.0; uvs[1] = 1.0;
-uvs[2] = 1.0; uvs[3] = 1.0;
-uvs[4] = 1.0; uvs[5] = 0.0;
-uvs[6] = 0.0; uvs[7] = 0.0;
-playerGeometry.attributes.uv.needsUpdate = true;
+// --- Spieler-Erstellung ohne InstancedMesh ---
+// Entferne den InstancedMesh-Block und nutze stattdessen individuelle Meshes
 
-const playerMaterial = new THREE.MeshStandardMaterial({
-    map: playerTexture,
-    transparent: true,
-    metalness: 0.0,
-    roughness: 0.3,
-    emissive: new THREE.Color(0x000000),
-    emissiveIntensity: 0.0
-});
-
-const maxPlayers = 500;
-const playerMesh = new THREE.InstancedMesh(playerGeometry, playerMaterial, maxPlayers);
-scene.add(playerMesh);
-
-function updatePlayers() {
-    const matrix = new THREE.Matrix4();
-    players.forEach((player, index) => {
-        matrix.setPosition(player.position.x, player.position.y, player.position.z);
-        playerMesh.setMatrixAt(index, matrix);
-    });
-    playerMesh.instanceMatrix.needsUpdate = true;
-}
-
-// --- createPlayer Function (with optional skin) ---
-export function createPlayer(size, position, isSplit = false, skin) {
+export function createPlayer(size, position, isSplit = false, skin, playerId) {
     const materialOptions = {
         map: skin ? textureLoader.load(skin) : playerTexture,
         transparent: true,
@@ -200,6 +173,9 @@ export function createPlayer(size, position, isSplit = false, skin) {
     mesh.rotation.x = -Math.PI / 2;
     mesh.isSplit = isSplit;
     mesh.renderOrder = -1;
+    
+    // Setze die Spieler-ID, um später Updates zuordnen zu können
+    mesh.playerId = playerId;
     
     scene.add(mesh);
     players.push(mesh);
@@ -253,8 +229,8 @@ function loadPlayersFromLobby() {
         const playersData = gameData.players;
         players = [];
         playersData.forEach((p) => {
-            // Create a player using the data (size, x, and skin)
-            createPlayer(p.size || 40, new THREE.Vector3(p.x, 40, p.z), false, p.skin);
+            // Erstelle einen Spieler und übergebe p.id als eindeutige playerId
+            createPlayer(p.size || 40, new THREE.Vector3(p.x, 40, p.z), false, p.skin, p.id);
         });
     } catch (err) {
         console.error("Error parsing gameData:", err);
@@ -265,100 +241,96 @@ window.addEventListener("DOMContentLoaded", loadPlayersFromLobby);
 
 // ===================== PART 5 =====================
 // --- Update Growth & Camera ---
-function updateGrowth() {
-    for (let player of players) {
-        player.scale.setScalar(player.size / 40);
-        let baseHeight = 500;
-        let zoomFactor = 50;
-        let maxZoomOut = 1500;
-        let newHeight = baseHeight + Math.min(player.size * zoomFactor, maxZoomOut);
-        camera.position.y = newHeight;
-        // Recalculate player's world position
-        player.getWorldPosition(player.position);
-        camera.position.copy(player.position).add(new THREE.Vector3(0, 1000, 1500));
-        camera.lookAt(player.position);
-    }
+function updateCamera() {
+  if (players.length === 0) return;
+
+  // Berechne den Durchschnitt aller Spielerpositionen
+  const avgPosition = new THREE.Vector3(0, 0, 0);
+  players.forEach(player => {
+    avgPosition.add(player.position);
+  });
+  avgPosition.divideScalar(players.length);
+
+  // Fester Offset – passe diese Werte an, bis der gewünschte Effekt erreicht ist
+  // Hier: 500 Einheiten nach oben und 500 Einheiten nach hinten
+  const offset = new THREE.Vector3(0, 500, 500);
+
+  // Setze die Kamera auf den Zielpunkt plus Offset
+  camera.position.copy(avgPosition).add(offset);
+  camera.lookAt(avgPosition);
+
+  // Debug-Ausgaben
+  console.log("Durchschnittliche Position:", avgPosition);
+  console.log("Kamera-Position:", camera.position);
 }
 
-// --- Placeholder Functions ---
-// Define basic versions for missing functions
 
+// --- Placeholder-Funktionen ---
 function updatePlayerMovement() {
-    // TODO: Implement your player movement logic here.
-    // For now, we'll simply log that the function is called.
-    // You can update player positions based on input or physics.
-    // Example: players[0].position.x += moveSpeed * clock.getDelta();
+    // TODO: Implementiere die Bewegungslogik.
+    // Beispiel: players.forEach(p => p.position.x += moveSpeed * clock.getDelta());
 }
 
 function checkFoodCollision() {
-    // TODO: Implement collision detection between players and food particles.
-    // Placeholder: log collision check.
-    // You might iterate over players and check distances to food positions.
+    // TODO: Implementiere Kollisionserkennung zwischen Spielern und Food.
+    // Placeholder: ggf. debuggen.
 }
 
 function checkProjectileCollision() {
-    // TODO: Implement collision detection for projectiles.
-    // Placeholder: log projectile collision check.
+    // TODO: Implementiere Kollisionserkennung für Projektile.
 }
 
 function updateHUD() {
-    // Update the HUD elements, e.g., score and timer.
     const scoreElement = document.getElementById('scoreCounter');
     if (players.length > 0 && scoreElement) {
+        // Zeige den Score des ersten Spielers (kann angepasst werden)
         scoreElement.innerText = Math.floor(players[0].size);
     }
 }
 
-// --- Main Animate Loop ---
+// --- Animationsloop ---
 function animate() {
-    requestAnimationFrame(animate);
-    if (!renderer) return;
+  requestAnimationFrame(animate);
+  if (!renderer) return;
 
-    const delta = clock.getDelta();
+  const delta = clock.getDelta();
 
-    updatePlayerMovement();
-    updateLasers(scene, players);
-    updateEjectedMass();
-    checkEjectedMassCollision(players, scene);
-    updateGrowth();
+  updatePlayerMovement();
+  updateLasers(scene, players);
+  updateEjectedMass();
+  checkEjectedMassCollision(players, scene);
 
-    if (playerMaterial) {
-        playerMaterial.map.rotation += 0.02;
-    }
+  // Aktualisiere die Kamera
+  updateCamera();
 
-    checkFoodCollision();
-    // Removed mergePlayers() as per your instruction.
-    checkProjectileCollision();
+  // Aktualisiere weitere Elemente wie Timer und Leaderboard
+  let remainingTime = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+  let minutes = Math.floor(remainingTime / 60);
+  let seconds = remainingTime % 60;
+  const timerElement = document.getElementById('timer');
+  if (timerElement) {
+      timerElement.innerText = `Time: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  }
 
-    // HUD & Leaderboard Updates
-    let remainingTime = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-    let minutes = Math.floor(remainingTime / 60);
-    let seconds = remainingTime % 60;
-    const timerElement = document.getElementById('timer');
-    if (timerElement) {
-        timerElement.innerText = `Time: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-    }
+  const leaderboardElement = document.getElementById('leaderboard-list');
+  if (leaderboardElement) {
+      let sortedPlayers = players.slice().sort((a, b) => b.size - a.size).slice(0, 10);
+      leaderboardElement.innerHTML = sortedPlayers.map((p, i) =>
+          `<li>#${i + 1}: Score ${Math.floor(p.size)}</li>`
+      ).join('');
+  }
 
-    // Update leaderboard based on players' sizes
-    const leaderboardElement = document.getElementById('leaderboard-list');
-    if (leaderboardElement) {
-        let sortedPlayers = players.slice().sort((a, b) => b.size - a.size).slice(0, 10);
-        leaderboardElement.innerHTML = sortedPlayers.map((p, i) =>
-            `<li>#${i + 1}: Score ${Math.floor(p.size)}</li>`
-        ).join('');
-    }
+  players.forEach(player => {
+      let distanceToCamera = camera.position.distanceTo(player.position);
+      player.visible = (distanceToCamera <= 5000);
+      playerLasers.set(player, 3);
+  });
 
-    players.forEach(player => {
-        let distance = camera.position.distanceTo(player.position);
-        player.visible = (distance <= 5000);
-        playerLasers.set(player, 3);
-    });
-
-    renderer.render(scene, camera);
+  renderer.render(scene, camera);
 }
 animate();
 
-// --- Keydown Event Listeners ---
+// --- Tastatur-Events ---
 document.addEventListener('keydown', (event) => {
     if (event.key === 'e' && players.length > 0) {
         shootLaser(players[0], scene, targetPosition);
@@ -370,11 +342,10 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-// --- FBXLoader Import and Example Model Loading ---
+// --- FBXLoader-Import und Beispiel-Objektladen ---
 import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@latest/examples/jsm/loaders/FBXLoader.js';
 const loader = new FBXLoader();
 
-// Example loadObject function (adjust paths and settings as needed)
 function loadObject(path, scale, position, isRunestone = false) {
     loader.load(path, function (fbx) {
         fbx.scale.set(scale, scale, scale);
@@ -417,7 +388,5 @@ function loadObject(path, scale, position, isRunestone = false) {
     });
 }
 
-// Uncomment to call placeStaticObjects if desired
+// Uncomment, falls statische Objekte platziert werden sollen
 // placeStaticObjects();
-
-
