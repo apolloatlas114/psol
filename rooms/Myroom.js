@@ -2,7 +2,7 @@
 import { Room } from "colyseus";
 import { Schema, type, MapSchema } from "@colyseus/schema";
 
-// Definiere einen Spieler als Schema
+// Definiere das Spieler-Schema
 export class Player extends Schema {
   @type("string") id = "";
   @type("string") name = "";
@@ -22,13 +22,12 @@ export class MyRoomState extends Schema {
 
 export class MyRoom extends Room {
   onCreate(options) {
-    this.setState(new MyRoomState());
     console.log("Room created with options:", options);
+    this.setState(new MyRoomState());
   }
   
   onJoin(client, options) {
     console.log(client.sessionId, "joined.");
-    // Erstelle einen neuen Spieler
     const player = new Player();
     player.id = client.sessionId;
     player.name = options.username || "Anonymous";
@@ -40,19 +39,22 @@ export class MyRoom extends Room {
     player.lobby = "lobby-" + Date.now();
     
     this.state.players.set(client.sessionId, player);
+    // Broadcast Update an alle Clients (für Lobby/Warteraum)
+    this.broadcast("waitingRoomUpdate", Array.from(this.state.players.values()));
     
-    // Broadcaste den neuen Zustand an alle Clients
-    this.broadcast("stateUpdate", this.state);
+    // Sende auch den kompletten Zustand an den neu beigetretenen Client
+    client.send("stateUpdate", this.state);
   }
   
   onMessage(client, message) {
-    // Beispiel: Verarbeite Bewegungsupdates
+    // Beispiel: Verarbeite Bewegungsupdates (z.B. { action: "move", x, z })
     const player = this.state.players.get(client.sessionId);
     if (player && message.action === "move") {
       player.x = message.x;
       player.z = message.z;
-      // Hier können Score und andere Werte aktualisiert werden
+      // Sende den aktualisierten Zustand an alle Clients
       this.broadcast("stateUpdate", this.state);
+      // Ebenfalls in der Lobby könntest du ein waitingRoomUpdate senden, wenn nötig.
     }
   }
   
@@ -60,6 +62,7 @@ export class MyRoom extends Room {
     console.log(client.sessionId, "left.");
     this.state.players.delete(client.sessionId);
     this.broadcast("stateUpdate", this.state);
+    this.broadcast("waitingRoomUpdate", Array.from(this.state.players.values()));
   }
   
   onDispose() {

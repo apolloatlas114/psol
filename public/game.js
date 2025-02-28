@@ -9,11 +9,10 @@ const clock = new THREE.Clock();
 let players = []; // Array für individuelle Spieler-Meshes
 let endTime = Date.now() + 20 * 60 * 1000; // 20 Minuten Timer
 
-// updateState: Wird vom Colyseus-Raum-Event aufgerufen
+// updateState: Wird vom Raum über "stateUpdate" aufgerufen
 export function updateState(state) {
-  // state.players ist ein MapSchema: { sessionId: { ... }, ... }
   const statePlayers = state.players;
-  // Aktualisiere vorhandene Spieler oder erstelle neue, falls nötig
+  // Für jeden Spieler aus dem Zustand
   for (const id in statePlayers) {
     const data = statePlayers[id];
     let mesh = players.find(p => p.playerId === id);
@@ -22,13 +21,15 @@ export function updateState(state) {
       mesh.size = data.size;
       mesh.score = data.score;
     } else {
-      // Erstelle neuen Spieler
       mesh = createPlayer(data.size || 40, new THREE.Vector3(data.x, 40, data.z), false, data.skin, id);
     }
   }
-  // Optional: Entferne Spieler, die nicht mehr im state sind
+  // Entferne Spieler, die nicht mehr im Zustand vorhanden sind
   players = players.filter(p => statePlayers[p.playerId]);
 }
+
+
+
 // ===================== PART 2 =====================
 // Szenen- und Renderer-Setup
 const scene = new THREE.Scene();
@@ -107,6 +108,7 @@ const playerTexture = textureLoader.load("textures/playerSkinredalien1.png", (te
 });
 
 
+
 // ===================== PART 4 =====================
 // Spieler-Erstellung als individuelle Meshes
 export function createPlayer(size, position, isSplit = false, skin, playerId) {
@@ -171,6 +173,27 @@ function spawnFood() {
 }
 setTimeout(spawnFood, 1000);
 
+// Load Players from localStorage (wird in gameData gespeichert)
+function loadPlayersFromLobby() {
+  const data = localStorage.getItem("gameData");
+  if (!data) {
+    console.error("No game data found. Cannot load players.");
+    return;
+  }
+  try {
+    const gameData = JSON.parse(data);
+    const playersData = gameData.players;
+    players = [];
+    playersData.forEach((p) => {
+      createPlayer(p.size || 40, new THREE.Vector3(p.x, 40, p.z), false, p.skin, p.id);
+    });
+  } catch (err) {
+    console.error("Error parsing gameData:", err);
+  }
+}
+window.addEventListener("DOMContentLoaded", loadPlayersFromLobby);
+
+
 
 // ===================== PART 5 =====================
 // Update Camera: Nutzt den Durchschnitt aller Spielerpositionen
@@ -181,7 +204,7 @@ function updateCamera() {
     avgPosition.add(player.position);
   });
   avgPosition.divideScalar(players.length);
-  // Fester Offset, z.B. 800 Einheiten nach oben und hinten
+  // Fester Offset – hier 800 Einheiten nach oben und hinten
   const offset = new THREE.Vector3(0, 800, 800);
   camera.position.copy(avgPosition).add(offset);
   camera.lookAt(avgPosition);
@@ -189,15 +212,15 @@ function updateCamera() {
 }
 
 function updatePlayerMovement() {
-  // Hier kannst du Eingaben verarbeiten und Bewegungsdaten ggf. an den Server senden
+  // Hier könntest du Eingaben verarbeiten und Bewegungsdaten an den Server senden.
 }
 
 function checkFoodCollision() {
-  // Implementiere Kollisionserkennung zwischen Spielern und Food
+  // Implementiere Kollisionserkennung zwischen Spielern und Food.
 }
 
 function checkProjectileCollision() {
-  // Implementiere Kollisionserkennung für Projektile
+  // Implementiere Kollisionserkennung für Projektile.
 }
 
 function updateHUD() {
@@ -304,3 +327,7 @@ function loadObject(path, scale, position, isRunestone = false) {
     console.error("❌ Error loading FBX:", error);
   });
 }
+
+
+
+

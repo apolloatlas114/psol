@@ -5,10 +5,9 @@ import http from "http";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Server } from "colyseus";
-import { monitor } from "@colyseus/monitor";
 import mongoose from "mongoose";
-
+import { Server } from "colyseus";
+import { monitor } from "@colyseus/monitor";  // Falls du den Monitor nutzen möchtest
 import userRoutes from "./routes/user.js";
 import authRoutes from "./routes/auth.js";
 import prizeRoutes from "./routes/prize.js";
@@ -32,7 +31,7 @@ app.use(express.static(path.join(__dirname, "public"), { extensions: ["html", "c
 
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true,
+  useUnifiedTopology: true
 })
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err));
@@ -44,9 +43,7 @@ app.use("/api/prize", prizeRoutes);
 // Colyseus-Monitor (optional)
 app.use("/colyseus", monitor());
 
-const gameServer = new Server({
-  server: server,
-});
+const gameServer = new Server({ server: server });
 
 // Definiere den Raum "my_room"
 gameServer.define("my_room", MyRoom);
