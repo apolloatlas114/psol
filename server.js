@@ -18,8 +18,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
+
 // ===================== PART 2 =====================
-// --- CORS & Middleware ---
+// --- Middleware & Static Files ---
 app.use(cors({
   origin: ["https://gaming-dashboard.webflow.io", "http://localhost:5000"],
   methods: ["GET", "POST"],
@@ -29,7 +30,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public"), { extensions: ["html", "css", "js"] }));
 
-// --- Connect to MongoDB ---
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -38,12 +38,11 @@ mongoose.connect(process.env.MONGO_URI, {
   .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
 // ===================== PART 3 =====================
-// --- API Routes ---
+// --- API Routes & Rate Limiting ---
 app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/prize", prizeRoutes);
 
-// --- Rate Limiting ---
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
@@ -52,7 +51,6 @@ const apiLimiter = rateLimit({
 app.use("/api/buyin", apiLimiter);
 app.use("/api/payout", apiLimiter);
 
-// --- Serve the Game Page ---
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -67,108 +65,70 @@ const io = new IOServer(server, {
   }
 });
 
-// Use Maps for robust state management.
+// Zentrale Spieler-Datenstruktur
+let playersState = {}; // Schlüssel: socket.id, Wert: { id, name, x, z, size, score, skin, lobby }
 const minPlayersToStart = 2;
 const countdownTime = 5;
-let waitingRoom = new Map();
+let waitingRoom = {};  // Temporäre Speicherung während des Wartens
 let isGameStarting = false;
 let countdownInterval = null;
-let connectedPlayers = new Map();
-let leaderboard = [];
-let players = []; // (For in-game state if needed later)
 
+// Bei Verbindung
 io.on("connection", (socket) => {
   console.log(`🟢 Player connected: ${socket.id}`);
 
-  // Immediately send the current waiting room state to the new connection.
-  socket.emit("waitingRoomUpdate", Array.from(waitingRoom.values()));
-  console.log("Emitting current waiting room:", Array.from(waitingRoom.values()));
+  // Sende initial den aktuellen Waiting-Room-Zustand
+  socket.emit("waitingRoomUpdate", Object.values(waitingRoom));
 
   socket.on("playerJoin", ({ username }) => {
-    try {
-      if (!username || !username.trim()) {
-        socket.emit("error", "❌ ERROR: Invalid username!");
-        return;
-      }
-      // Simple sanitization: remove any non-alphanumeric characters except spaces
-      username = username.trim().replace(/[^\w\s]/gi, "");
-      let originalUsername = username;
-      let counter = 1;
-      // Ensure unique username in waiting room.
-      while ([...waitingRoom.values()].some(p => p.name === username)) {
-        username = `${originalUsername}${counter}`;
-        counter++;
-      }
-      console.log(`🕐 Player joined waiting room: ${username} (ID: ${socket.id})`);
-      waitingRoom.set(socket.id, { id: socket.id, name: username });
-      connectedPlayers.set(socket.id, { id: socket.id, name: username, score: 0 });
-      const fullState = Array.from(waitingRoom.values());
-      io.emit("waitingRoomUpdate", fullState);
-      console.log("Waiting room now:", fullState.map(p => p.name));
+    if (!username || !username.trim()) {
+      socket.emit("error", "❌ ERROR: Invalid username!");
+      return;
+    }
+    username = username.trim().replace(/[^\w\s]/gi, "");
+    // Sicherstellen, dass der Username eindeutig ist (im Waiting Room)
+    let originalUsername = username, counter = 1;
+    while (Object.values(waitingRoom).some(p => p.name === username)) {
+      username = `${originalUsername}${counter}`;
+      counter++;
+    }
+    console.log(`🕐 Player joined waiting room: ${username} (ID: ${socket.id})`);
+    // Speichere im Waiting Room – später im Spielstart werden die Startpositionen vergeben
+    waitingRoom[socket.id] = { id: socket.id, name: username };
+    io.emit("waitingRoomUpdate", Object.values(waitingRoom));
 
-      if (waitingRoom.size >= minPlayersToStart && !isGameStarting) {
-        isGameStarting = true;
-        console.log("Minimum players reached. Starting countdown in 1 second...");
-        setTimeout(() => {
-          if (waitingRoom.size >= minPlayersToStart) {
-            startGameCountdown();
-          } else {
-            isGameStarting = false;
-          }
-        }, 1000);
-      }
-    } catch (err) {
-      console.error("❌ Error in playerJoin handler:", err);
+    if (Object.keys(waitingRoom).length >= minPlayersToStart && !isGameStarting) {
+      isGameStarting = true;
+      console.log("Minimum players reached. Starting countdown in 1 second...");
+      setTimeout(() => {
+        if (Object.keys(waitingRoom).length >= minPlayersToStart) {
+          startGameCountdown();
+        } else {
+          isGameStarting = false;
+        }
+      }, 1000);
     }
   });
 
-  socket.on("leaveWaitingRoom", ({ username }) => {
-    try {
-      console.log(`❌ Player left waiting room: ${username || socket.id}`);
-      waitingRoom.delete(socket.id);
-      io.emit("waitingRoomUpdate", Array.from(waitingRoom.values()));
-      if (waitingRoom.size < minPlayersToStart && countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-        isGameStarting = false;
-        io.emit("startGameCountdown", "Waiting for more players...");
-      }
-    } catch (err) {
-      console.error("❌ Error in leaveWaitingRoom handler:", err);
+  socket.on("playerMovement", (data) => {
+    // data sollte { id, x, z } enthalten (zum Beispiel)
+    if (playersState[socket.id]) {
+      playersState[socket.id].x = data.x;
+      playersState[socket.id].z = data.z;
+      // Optionale Logik: Score, Größe etc. können ebenfalls aktualisiert werden
+      broadcastState();
     }
   });
 
   socket.on("disconnect", () => {
-    try {
-      console.log(`❌ Player disconnected: ${socket.id}`);
-      waitingRoom.delete(socket.id);
-      connectedPlayers.delete(socket.id);
-      io.emit("waitingRoomUpdate", Array.from(waitingRoom.values()));
-      if (waitingRoom.size < minPlayersToStart && countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-        isGameStarting = false;
-        io.emit("startGameCountdown", "Waiting for more players...");
-      }
-      players = players.filter(p => p.id !== socket.id);
-    } catch (err) {
-      console.error("❌ Error during disconnect handling:", err);
-    }
+    console.log(`❌ Player disconnected: ${socket.id}`);
+    delete waitingRoom[socket.id];
+    delete playersState[socket.id];
+    io.emit("waitingRoomUpdate", Object.values(waitingRoom));
+    broadcastState();
   });
 
-  socket.on("updateScore", ({ id, score }) => {
-    try {
-      if (connectedPlayers.has(id)) {
-        let player = connectedPlayers.get(id);
-        player.score = score;
-        connectedPlayers.set(id, player);
-        updateLeaderboard();
-      }
-    } catch (err) {
-      console.error("❌ Error updating score:", err);
-    }
-  });
-
+  // Sobald der Spielstart erfolgt, wird das waitingRoom-Objekt in playersState überführt
   function startGameCountdown() {
     let countdown = countdownTime;
     console.log(`⏳ Countdown initiated: ${countdown} seconds`);
@@ -186,23 +146,19 @@ io.on("connection", (socket) => {
   }
 
   function startGame() {
-    if (waitingRoom.size < minPlayersToStart) {
-      isGameStarting = false;
-      return;
-    }
-    console.log("🚀 Starting match with players:", Array.from(waitingRoom.values()).map(p => p.name));
-    let lobbyId = "lobby-" + Date.now();
-    let playersInGame = [];
+    // Erstelle für jeden Spieler Startpositionen und füge sie in playersState ein
+    const lobbyId = "lobby-" + Date.now();
     const availableSkins = [
       "textures/playerSkin1.png",
       "textures/playerSkin4.png",
       "textures/playerSkin5.png",
       "textures/playerSkin14.png"
     ];
-    waitingRoom.forEach((player) => {
+    for (let id in waitingRoom) {
+      const player = waitingRoom[id];
       const randomSkin = availableSkins[Math.floor(Math.random() * availableSkins.length)];
-      playersInGame.push({
-        id: player.id,
+      playersState[id] = {
+        id,
         name: player.name,
         x: Math.random() * 1000 - 500,
         z: Math.random() * 1000 - 500,
@@ -211,23 +167,22 @@ io.on("connection", (socket) => {
         skin: randomSkin,
         mode: "free",
         lobby: lobbyId
-      });
-      io.to(player.id).emit("gameStart", { lobbyId, players: playersInGame });
-    });
-    io.emit("gameStart", { lobbyId, players: playersInGame });
-    waitingRoom.clear();
+      };
+      // Sende individuellen gameStart an jeden Spieler
+      io.to(id).emit("gameStart", { lobbyId, players: Object.values(playersState) });
+    }
+    io.emit("gameStart", { lobbyId, players: Object.values(playersState) });
+    waitingRoom = {};
     isGameStarting = false;
+    broadcastState();
+  }
+
+  function broadcastState() {
+    // Sende den aktuellen Zustand an alle Clients
+    io.emit("stateUpdate", Object.values(playersState));
   }
 });
-
-function updateLeaderboard() {
-  let arr = Array.from(connectedPlayers.values()).filter(p => p.name && p.name.trim() !== "");
-  leaderboard = arr.sort((a, b) => b.score - a.score).slice(0, 10);
-  io.emit("updateLeaderboard", leaderboard);
-  console.log("🏆 New Leaderboard Data:", leaderboard);
-}
-
+  
 // ===================== PART 5 =====================
-// --- Start the Server ---
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));

@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PSOL Game - 3D Agar.io</title>
   <link rel="stylesheet" type="text/css" href="style.css" />
-
   <!-- ✅ Three.js Import -->
   <script type="importmap">
     {
@@ -30,103 +29,87 @@
   </script>
 </head>
 <body>
-  <!-- ✅ REMOVED the username input because it should come from the lobby -->
   <!-- ✅ Game Canvas (Initially Hidden) -->
   <canvas id="gameCanvas" style="display: none;"></canvas>
-
   <!-- ✅ HUD (Score, Timer & Leaderboard) -->
   <div id="hud" style="display: none;">
     <div id="timer" class="hud">
       <span class="hud-label">TIME:</span>
       <span class="hud-value">20:00</span>
     </div>
-
-    <!-- ✅ Score Counter (bottom left) -->
     <div id="score" class="hud" style="position: absolute; bottom: 10px; left: 20px;">
       <span class="hud-label">SCORE:</span>
       <span class="hud-value" id="scoreCounter">0</span>
     </div>
-
-    <!-- ✅ Pool Money (bottom right) -->
     <div id="poolMoney" class="hud" style="position: absolute; bottom: 10px; right: 20px;">
       <span class="hud-label">POOL:</span>
       <span class="hud-value" id="poolAmount">$0</span>
     </div>
-
-    <!-- ✅ Leaderboard (top right) -->
     <div id="leaderboard" class="hud">
       <h3>TOP 10 PLAYERS</h3>
       <ul id="leaderboard-list"></ul>
     </div>
   </div>
-
+  
   <!-- ✅ Load Socket.IO -->
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-
   <!-- ✅ Multiplayer WebSocket Connection & Game Script Loader -->
   <script>
     let socket;
     
-    // ✅ CHECK if gameData from lobby exists
     let gameData = JSON.parse(localStorage.getItem("gameData"));
     
     if (!gameData || !gameData.username) {
-        console.error("❌ ERROR: gameData is missing. Redirecting back to lobby...");
-        alert("⚠️ ERROR: Missing game data. Redirecting to lobby...");
-        window.location.href = "https://gaming-dashboard.webflow.io";  // Redirect back to lobby
+      console.error("❌ ERROR: gameData is missing. Redirecting back to lobby...");
+      alert("⚠️ ERROR: Missing game data. Redirecting to lobby...");
+      window.location.href = "https://gaming-dashboard.webflow.io";
     } else {
-        console.log("✅ gameData loaded:", gameData);
+      console.log("✅ gameData loaded:", gameData);
     }
-
+    
     async function initializeGame() {
-        try {
-            console.log("✅ Connecting to WebSocket...");
-            socket = io("https://psolgame-e77454844bbd.herokuapp.com", {
-                transports: ["websocket", "polling"],
-                withCredentials: true
-            });
-
-            console.log("✅ WebSocket connected!");
-
-            // ✅ JOIN GAME using stored username (NO NEED FOR NEW INPUT)
-            socket.emit("playerJoin", { username: gameData.username });
-
-            // ✅ LISTEN for leaderboard updates
-            socket.on("updateLeaderboard", (leaderboard) => {
-                let leaderboardElement = document.getElementById("leaderboard-list");
-                leaderboardElement.innerHTML = leaderboard
-                    .map((player, index) => `<li>#${index + 1}: ${player.name} - ${Math.floor(player.score)}</li>`)
-                    .join("");
-            });
-
-            // ✅ LISTEN for game start from server
-            socket.on("gameStart", async ({ lobbyId, players }) => {
-                try {
-                    console.log(`🚀 Game started in lobby: ${lobbyId}`);
-                    console.log("🔹 Players in game:", players);
-
-                    document.getElementById("gameCanvas").style.display = "block";
-                    document.getElementById("hud").style.display = "block";
-
-                    // ✅ STORE game data in localStorage for game.js to access (using a consistent key)
-                    localStorage.setItem("gameData", JSON.stringify({ players, lobbyId, username: gameData.username }));
-
-                    // ✅ LOAD GAME AFTER SOCKET CONNECTION
-                    await import("./game.js");
-                    await import("./multiplayer.js");
-                    console.log("✅ Game scripts loaded successfully!");
-                } catch (err) {
-                    console.error("❌ Error during game start handling:", err);
-                }
-            });
-
-        } catch (error) {
-            console.error("❌ WebSocket Connection Failed:", error);
-            alert("⚠️ Failed to connect to the game server.");
-        }
+      try {
+        console.log("✅ Connecting to WebSocket...");
+        socket = io("https://psolgame-e77454844bbd.herokuapp.com", {
+          transports: ["websocket", "polling"],
+          withCredentials: true
+        });
+        console.log("✅ WebSocket connected!");
+    
+        // JOIN GAME using stored username
+        socket.emit("playerJoin", { username: gameData.username });
+    
+        socket.on("updateLeaderboard", (leaderboard) => {
+          let leaderboardElement = document.getElementById("leaderboard-list");
+          leaderboardElement.innerHTML = leaderboard
+            .map((player, index) => `<li>#${index + 1}: ${player.name} - ${Math.floor(player.score)}</li>`)
+            .join("");
+        });
+    
+        socket.on("gameStart", async ({ lobbyId, players }) => {
+          try {
+            console.log(`🚀 Game started in lobby: ${lobbyId}`);
+            console.log("🔹 Players in game:", players);
+            document.getElementById("gameCanvas").style.display = "block";
+            document.getElementById("hud").style.display = "block";
+    
+            // Speichere vollständige Daten (Objekt mit players, lobbyId, username)
+            localStorage.setItem("gameData", JSON.stringify({ players, lobbyId, username: gameData.username }));
+    
+            await import("./game.js");
+            await import("./multiplayer.js");
+            console.log("✅ Game scripts loaded successfully!");
+          } catch (err) {
+            console.error("❌ Error during game start handling:", err);
+          }
+        });
+    
+      } catch (error) {
+        console.error("❌ WebSocket Connection Failed:", error);
+        alert("⚠️ Failed to connect to the game server.");
+      }
     }
-
-    // ✅ INITIATE GAME AFTER PAGE LOAD
+    
     initializeGame();
   </script>
 </body>
