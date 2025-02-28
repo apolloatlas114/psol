@@ -57,7 +57,6 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-
 // ===================== PART 4 =====================
 import { Server as IOServer } from "socket.io";
 const io = new IOServer(server, {
@@ -86,70 +85,87 @@ io.on("connection", (socket) => {
   console.log("Emitting current waiting room:", Array.from(waitingRoom.values()));
 
   socket.on("playerJoin", ({ username }) => {
-    if (!username || !username.trim()) {
-      socket.emit("error", "❌ ERROR: Invalid username!");
-      return;
-    }
-    username = username.trim();
-    let originalUsername = username;
-    let counter = 1;
-    // Ensure unique username in waiting room.
-    while ([...waitingRoom.values()].some(p => p.name === username)) {
-      username = `${originalUsername}${counter}`;
-      counter++;
-    }
-    console.log(`🕐 Player joined waiting room: ${username} (ID: ${socket.id})`);
-    waitingRoom.set(socket.id, { id: socket.id, name: username });
-    connectedPlayers.set(socket.id, { id: socket.id, name: username, score: 0 });
-    const fullState = Array.from(waitingRoom.values());
-    io.emit("waitingRoomUpdate", fullState);
-    console.log("Waiting room now:", fullState.map(p => p.name));
+    try {
+      if (!username || !username.trim()) {
+        socket.emit("error", "❌ ERROR: Invalid username!");
+        return;
+      }
+      // Simple sanitization: remove any non-alphanumeric characters except spaces
+      username = username.trim().replace(/[^\w\s]/gi, "");
+      let originalUsername = username;
+      let counter = 1;
+      // Ensure unique username in waiting room.
+      while ([...waitingRoom.values()].some(p => p.name === username)) {
+        username = `${originalUsername}${counter}`;
+        counter++;
+      }
+      console.log(`🕐 Player joined waiting room: ${username} (ID: ${socket.id})`);
+      waitingRoom.set(socket.id, { id: socket.id, name: username });
+      connectedPlayers.set(socket.id, { id: socket.id, name: username, score: 0 });
+      const fullState = Array.from(waitingRoom.values());
+      io.emit("waitingRoomUpdate", fullState);
+      console.log("Waiting room now:", fullState.map(p => p.name));
 
-    if (waitingRoom.size >= minPlayersToStart && !isGameStarting) {
-      isGameStarting = true;
-      console.log("Minimum players reached. Starting countdown in 1 second...");
-      setTimeout(() => {
-        if (waitingRoom.size >= minPlayersToStart) {
-          startGameCountdown();
-        } else {
-          isGameStarting = false;
-        }
-      }, 1000);
+      if (waitingRoom.size >= minPlayersToStart && !isGameStarting) {
+        isGameStarting = true;
+        console.log("Minimum players reached. Starting countdown in 1 second...");
+        setTimeout(() => {
+          if (waitingRoom.size >= minPlayersToStart) {
+            startGameCountdown();
+          } else {
+            isGameStarting = false;
+          }
+        }, 1000);
+      }
+    } catch (err) {
+      console.error("❌ Error in playerJoin handler:", err);
     }
   });
 
   socket.on("leaveWaitingRoom", ({ username }) => {
-    console.log(`❌ Player left waiting room: ${username || socket.id}`);
-    waitingRoom.delete(socket.id);
-    io.emit("waitingRoomUpdate", Array.from(waitingRoom.values()));
-    if (waitingRoom.size < minPlayersToStart && countdownInterval) {
-      clearInterval(countdownInterval);
-      countdownInterval = null;
-      isGameStarting = false;
-      io.emit("startGameCountdown", "Waiting for more players...");
+    try {
+      console.log(`❌ Player left waiting room: ${username || socket.id}`);
+      waitingRoom.delete(socket.id);
+      io.emit("waitingRoomUpdate", Array.from(waitingRoom.values()));
+      if (waitingRoom.size < minPlayersToStart && countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+        isGameStarting = false;
+        io.emit("startGameCountdown", "Waiting for more players...");
+      }
+    } catch (err) {
+      console.error("❌ Error in leaveWaitingRoom handler:", err);
     }
   });
 
   socket.on("disconnect", () => {
-    console.log(`❌ Player disconnected: ${socket.id}`);
-    waitingRoom.delete(socket.id);
-    connectedPlayers.delete(socket.id);
-    io.emit("waitingRoomUpdate", Array.from(waitingRoom.values()));
-    if (waitingRoom.size < minPlayersToStart && countdownInterval) {
-      clearInterval(countdownInterval);
-      countdownInterval = null;
-      isGameStarting = false;
-      io.emit("startGameCountdown", "Waiting for more players...");
+    try {
+      console.log(`❌ Player disconnected: ${socket.id}`);
+      waitingRoom.delete(socket.id);
+      connectedPlayers.delete(socket.id);
+      io.emit("waitingRoomUpdate", Array.from(waitingRoom.values()));
+      if (waitingRoom.size < minPlayersToStart && countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+        isGameStarting = false;
+        io.emit("startGameCountdown", "Waiting for more players...");
+      }
+      players = players.filter(p => p.id !== socket.id);
+    } catch (err) {
+      console.error("❌ Error during disconnect handling:", err);
     }
-    players = players.filter(p => p.id !== socket.id);
   });
 
   socket.on("updateScore", ({ id, score }) => {
-    if (connectedPlayers.has(id)) {
-      let player = connectedPlayers.get(id);
-      player.score = score;
-      connectedPlayers.set(id, player);
-      updateLeaderboard();
+    try {
+      if (connectedPlayers.has(id)) {
+        let player = connectedPlayers.get(id);
+        player.score = score;
+        connectedPlayers.set(id, player);
+        updateLeaderboard();
+      }
+    } catch (err) {
+      console.error("❌ Error updating score:", err);
     }
   });
 
@@ -211,9 +227,7 @@ function updateLeaderboard() {
   console.log("🏆 New Leaderboard Data:", leaderboard);
 }
 
-
 // ===================== PART 5 =====================
 // --- Start the Server ---
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
-

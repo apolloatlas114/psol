@@ -7,7 +7,7 @@ export const socket = io("https://psolgame-e77454844bbd.herokuapp.com/");
 let players = {};
 let currentPlayer = null;
 let isInWaitingRoom = false; // ✅ Prevent immediate game start
-let isGameStarting = false; // ✅ Prevents double game start
+let isGameStarting = false;  // ✅ Prevents double game start
 
 document.addEventListener("DOMContentLoaded", () => {
   initializeMultiplayer();
@@ -32,8 +32,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       console.log(`📨 Sending playerJoin event with username: "${username}"`);
 
-      // ✅ Store username locally
-      localStorage.setItem("playerName", username);
+      // ✅ Store username locally using the same key as in HTML/gameData
+      localStorage.setItem("gameData", JSON.stringify({ username }));
 
       // ✅ Ensure player stays in waiting room (prevent auto-start)
       isInWaitingRoom = true;
@@ -69,15 +69,18 @@ function initializeMultiplayer() {
     }
   });
 
-  // ✅ Ensure the game does NOT start immediately
+  // ✅ Listen for game start countdown
   socket.on("startGameCountdown", (countdown) => {
     console.log(`⏳ Game starting in ${countdown} seconds...`);
-    document.getElementById("waiting-room-countdown").innerText = `Game starts in ${countdown} seconds...`;
+    const countdownElement = document.getElementById("waiting-room-countdown");
+    if (countdownElement) {
+      countdownElement.innerText = `Game starts in ${countdown} seconds...`;
+    }
   });
 
-  // ✅ Prevent Immediate Game Start
+  // ✅ Prevent Immediate Game Start and handle game start event
   socket.on("gameStart", (data) => {
-    if (!isInWaitingRoom || isGameStarting) return; // ✅ Prevents multiple game starts
+    if (!isInWaitingRoom || isGameStarting) return; // Prevent multiple game starts
     isGameStarting = true;
 
     console.log("🚀 Game started!");

@@ -49,6 +49,7 @@ socket.on("updateLeaderboard", (leaderboard) => {
     console.log("✅ Leaderboard updated successfully!");
 });
 
+// ===================== PART 2 =====================
 // --- Scene & Renderer Setup ---
 const scene = new THREE.Scene();
 console.log('✅ Scene successfully created!');
@@ -82,7 +83,7 @@ let rotatingLeft = false;
 let rotatingRight = false;
 
 
-// ===================== PART 2 =====================
+// ===================== PART 3 =====================
 // --- Grid & Map ---
 const gridSize = 100000;
 const gridMaterial = new THREE.LineBasicMaterial({
@@ -143,8 +144,7 @@ scene.traverse((child) => {
     }
 });
 
-
-// ===================== PART 3 =====================
+// ===================== PART 4 =====================
 // --- InstancedMesh for Players ---
 const playerGeometry = new THREE.PlaneGeometry(50, 50);
 const uvs = playerGeometry.attributes.uv.array;
@@ -206,8 +206,6 @@ export function createPlayer(size, position, isSplit = false, skin) {
     return mesh;
 }
 
-
-// ===================== PART 4 =====================
 // --- Food Particles Setup ---
 const foodCount = 10000;
 const foodSize = 15;
@@ -243,28 +241,30 @@ function spawnFood() {
 }
 setTimeout(spawnFood, 1000);
 
-// --- (Collision functions: checkFoodCollision, splitPlayer, mergePlayers, checkProjectileCollision) ---
-// (Assume you use your existing code for these functions)
-
-
-// ===================== PART 5A =====================
-// --- Load Players from Waiting Room Data ---
+// --- Load Players from Lobby Data ---
 function loadPlayersFromLobby() {
     const data = localStorage.getItem("gameData");
     if (!data) {
         console.error("No game data found. Cannot load players.");
         return;
     }
-    const playersData = JSON.parse(data);
-    players = [];
-    playersData.forEach((p) => {
-        // Create a player using the data (size, x, and skin)
-        createPlayer(p.size || 40, new THREE.Vector3(p.x, 40, p.z), false, p.skin);
-    });
+    try {
+        const gameData = JSON.parse(data);
+        const playersData = gameData.players;
+        players = [];
+        playersData.forEach((p) => {
+            // Create a player using the data (size, x, and skin)
+            createPlayer(p.size || 40, new THREE.Vector3(p.x, 40, p.z), false, p.skin);
+        });
+    } catch (err) {
+        console.error("Error parsing gameData:", err);
+    }
 }
 window.addEventListener("DOMContentLoaded", loadPlayersFromLobby);
 
-// --- Update Growth & Camera (using your old camera logic) ---
+
+// ===================== PART 5 =====================
+// --- Update Growth & Camera ---
 function updateGrowth() {
     for (let player of players) {
         player.scale.setScalar(player.size / 40);
@@ -275,9 +275,37 @@ function updateGrowth() {
         camera.position.y = newHeight;
         // Recalculate player's world position
         player.getWorldPosition(player.position);
-        // Use your old offset: (0, 1000, 1500)
         camera.position.copy(player.position).add(new THREE.Vector3(0, 1000, 1500));
         camera.lookAt(player.position);
+    }
+}
+
+// --- Placeholder Functions ---
+// Define basic versions for missing functions
+
+function updatePlayerMovement() {
+    // TODO: Implement your player movement logic here.
+    // For now, we'll simply log that the function is called.
+    // You can update player positions based on input or physics.
+    // Example: players[0].position.x += moveSpeed * clock.getDelta();
+}
+
+function checkFoodCollision() {
+    // TODO: Implement collision detection between players and food particles.
+    // Placeholder: log collision check.
+    // You might iterate over players and check distances to food positions.
+}
+
+function checkProjectileCollision() {
+    // TODO: Implement collision detection for projectiles.
+    // Placeholder: log projectile collision check.
+}
+
+function updateHUD() {
+    // Update the HUD elements, e.g., score and timer.
+    const scoreElement = document.getElementById('scoreCounter');
+    if (players.length > 0 && scoreElement) {
+        scoreElement.innerText = Math.floor(players[0].size);
     }
 }
 
@@ -287,7 +315,6 @@ function animate() {
     if (!renderer) return;
 
     const delta = clock.getDelta();
-    const currentTime = clock.getElapsedTime();
 
     updatePlayerMovement();
     updateLasers(scene, players);
@@ -300,19 +327,19 @@ function animate() {
     }
 
     checkFoodCollision();
-    updateGrowth();
-    mergePlayers();
+    // Removed mergePlayers() as per your instruction.
     checkProjectileCollision();
 
     // HUD & Leaderboard Updates
-    if (players.length > 0) {
-        document.getElementById('score').innerText = 'Score: ' + Math.floor(players[0].size);
-    }
     let remainingTime = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
     let minutes = Math.floor(remainingTime / 60);
     let seconds = remainingTime % 60;
-    document.getElementById('timer').innerText = `Time: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    const timerElement = document.getElementById('timer');
+    if (timerElement) {
+        timerElement.innerText = `Time: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    }
 
+    // Update leaderboard based on players' sizes
     const leaderboardElement = document.getElementById('leaderboard-list');
     if (leaderboardElement) {
         let sortedPlayers = players.slice().sort((a, b) => b.size - a.size).slice(0, 10);
@@ -329,9 +356,8 @@ function animate() {
 
     renderer.render(scene, camera);
 }
+animate();
 
-
-// ===================== PART 5B =====================
 // --- Keydown Event Listeners ---
 document.addEventListener('keydown', (event) => {
     if (event.key === 'e' && players.length > 0) {
@@ -393,3 +419,5 @@ function loadObject(path, scale, position, isRunestone = false) {
 
 // Uncomment to call placeStaticObjects if desired
 // placeStaticObjects();
+
+
