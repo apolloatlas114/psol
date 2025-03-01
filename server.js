@@ -7,7 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import mongoose from "mongoose";
 import { Server } from "colyseus";
-import { monitor } from "@colyseus/monitor";  // Falls du den Monitor nutzen möchtest
+import { monitor } from "@colyseus/monitor";
 import userRoutes from "./routes/user.js";
 import authRoutes from "./routes/auth.js";
 import prizeRoutes from "./routes/prize.js";
@@ -40,13 +40,15 @@ app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/prize", prizeRoutes);
 
-// Colyseus-Monitor (optional)
+// Optionaler Colyseus-Monitor (nur wenn benötigt)
 app.use("/colyseus", monitor());
 
-const gameServer = new Server({ server: server });
+const gameServer = new Server({ server });
 
 // Definiere den Raum "my_room"
 gameServer.define("my_room", MyRoom);
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`🚀 Colyseus Server running on http://localhost:${PORT}`));
+server.listen(PORT, () =>
+  console.log(`🚀 Colyseus Server running on http://localhost:${PORT}`)
+);

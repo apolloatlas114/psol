@@ -12,7 +12,7 @@ let endTime = Date.now() + 20 * 60 * 1000; // 20 Minuten Timer
 // updateState: Wird vom Raum über "stateUpdate" aufgerufen
 export function updateState(state) {
   const statePlayers = state.players;
-  // Für jeden Spieler aus dem Zustand
+  // Aktualisiere vorhandene Spieler oder erstelle neue, falls nicht vorhanden
   for (const id in statePlayers) {
     const data = statePlayers[id];
     let mesh = players.find(p => p.playerId === id);
@@ -24,7 +24,7 @@ export function updateState(state) {
       mesh = createPlayer(data.size || 40, new THREE.Vector3(data.x, 40, data.z), false, data.skin, id);
     }
   }
-  // Entferne Spieler, die nicht mehr im Zustand vorhanden sind
+  // Entferne Spieler, die nicht mehr im Zustand sind
   players = players.filter(p => statePlayers[p.playerId]);
 }
 
@@ -108,7 +108,6 @@ const playerTexture = textureLoader.load("textures/playerSkinredalien1.png", (te
 });
 
 
-
 // ===================== PART 4 =====================
 // Spieler-Erstellung als individuelle Meshes
 export function createPlayer(size, position, isSplit = false, skin, playerId) {
@@ -173,7 +172,8 @@ function spawnFood() {
 }
 setTimeout(spawnFood, 1000);
 
-// Load Players from localStorage (wird in gameData gespeichert)
+// Initiales Laden der Spieler aus localStorage (vom Dashboard)
+// Diese Funktion wird beim Seitenaufruf aufgerufen, um den initialen Zustand zu laden.
 function loadPlayersFromLobby() {
   const data = localStorage.getItem("gameData");
   if (!data) {
@@ -194,7 +194,6 @@ function loadPlayersFromLobby() {
 window.addEventListener("DOMContentLoaded", loadPlayersFromLobby);
 
 
-
 // ===================== PART 5 =====================
 // Update Camera: Nutzt den Durchschnitt aller Spielerpositionen
 function updateCamera() {
@@ -212,7 +211,7 @@ function updateCamera() {
 }
 
 function updatePlayerMovement() {
-  // Hier könntest du Eingaben verarbeiten und Bewegungsdaten an den Server senden.
+  // Hier könntest du z. B. Eingaben verarbeiten und (wenn nötig) Bewegungsdaten an den Server senden.
 }
 
 function checkFoodCollision() {
@@ -327,7 +326,4 @@ function loadObject(path, scale, position, isRunestone = false) {
     console.error("❌ Error loading FBX:", error);
   });
 }
-
-
-
 

@@ -2,7 +2,7 @@
 import { Room } from "colyseus";
 import { Schema, MapSchema } from "@colyseus/schema";
 
-// Spieler-Schema ohne Decorators
+// Spieler-Schema (ohne Decorators, mit Schema.defineTypes)
 export class Player extends Schema {
   constructor() {
     super();
@@ -30,7 +30,7 @@ Schema.defineTypes(Player, {
   lobby: "string"
 });
 
-// Raum-Zustand-Schema ohne Decorators
+// Raum-Zustand-Schema
 export class MyRoomState extends Schema {
   constructor() {
     super();
@@ -42,6 +42,7 @@ Schema.defineTypes(MyRoomState, {
   players: { map: Player }
 });
 
+// Raum-Klasse
 export class MyRoom extends Room {
   onCreate(options) {
     console.log("Room created with options:", options);
@@ -61,9 +62,10 @@ export class MyRoom extends Room {
     player.lobby = "lobby-" + Date.now();
     
     this.state.players.set(client.sessionId, player);
-    
-    // Sende den Zustand an alle Clients
+    // Sende den Zustand an alle Clients (Lobby und Spiel)
     this.broadcast("stateUpdate", this.state);
+    // Optional: sende auch eine separate Wartelisten-Nachricht
+    this.broadcast("waitingRoomUpdate", Array.from(this.state.players.values()));
   }
   
   onMessage(client, message) {
@@ -79,6 +81,7 @@ export class MyRoom extends Room {
     console.log(client.sessionId, "left.");
     this.state.players.delete(client.sessionId);
     this.broadcast("stateUpdate", this.state);
+    this.broadcast("waitingRoomUpdate", Array.from(this.state.players.values()));
   }
   
   onDispose() {
