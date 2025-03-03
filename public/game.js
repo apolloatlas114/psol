@@ -1,18 +1,16 @@
-// ===================== PART 1 =====================
-// --- Imports ---
+// game.js – Teil 1: Imports und Basisvariablen
 import * as THREE from "three";
 import { ejectMass, updateEjectedMass, checkEjectedMassCollision } from "./js/ejectMass.js";
 import { shootLaser, updateLasers, playerLasers } from "./js/laserShots.js";
 
-// Globale Variablen & Clock
 const clock = new THREE.Clock();
-let players = []; // Array für Spieler-Meshes
+let players = []; // Array individueller Spieler-Meshes
 let endTime = Date.now() + 20 * 60 * 1000; // 20 Minuten Timer
 
-// updateState: Wird vom Raum über "stateUpdate" aufgerufen
 export function updateState(state) {
+  // Aktualisiere Spieler basierend auf dem Server-Zustand
   const statePlayers = state.players;
-  // Für jeden Spieler im Zustand
+  // Für jeden Spieler:
   for (const id in statePlayers) {
     const data = statePlayers[id];
     let mesh = players.find(p => p.playerId === id);
@@ -24,13 +22,11 @@ export function updateState(state) {
       mesh = createPlayer(data.size || 40, new THREE.Vector3(data.x, 40, data.z), false, data.skin, id);
     }
   }
-  // Entferne Spieler, die nicht mehr im Zustand sind
+  // Entferne Spieler, die nicht mehr vorhanden sind
   players = players.filter(p => statePlayers[p.playerId]);
 }
 
-
-// ===================== PART 2 =====================
-// Szenen- und Renderer-Setup
+// game.js – Teil 2: Szene, Renderer und Kamera
 const scene = new THREE.Scene();
 let renderer;
 function initRenderer() {
@@ -47,14 +43,12 @@ function initRenderer() {
 }
 initRenderer();
 
-// Kamera-Setup
 const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 50000);
 camera.position.set(0, 10, 10);
 camera.lookAt(0, 0, 0);
 
 
-// ===================== PART 3 =====================
-// Grid & Map
+// game.js – Teil 3: Umgebung
 const gridSize = 100000;
 const gridMaterial = new THREE.LineBasicMaterial({
   color: 0x001100,
@@ -68,11 +62,9 @@ gridHelper.material = gridMaterial;
 gridHelper.position.y = -10;
 scene.add(gridHelper);
 
-// Ambient Light
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
 
-// Ground
 const textureLoader = new THREE.TextureLoader();
 const groundTexture = textureLoader.load("textures/platform1.jpg", (texture) => {
   texture.wrapS = THREE.RepeatWrapping;
@@ -95,7 +87,6 @@ ground.position.y = -35;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// Spieler-Textur
 const playerTexture = textureLoader.load("textures/playerSkinredalien1.png", (texture) => {
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -107,8 +98,7 @@ const playerTexture = textureLoader.load("textures/playerSkinredalien1.png", (te
 });
 
 
-// ===================== PART 4 =====================
-// Funktion zum Erstellen eines Spieler-Meshs
+// game.js – Teil 4: Spielererstellung und Food
 export function createPlayer(size, position, isSplit = false, skin, playerId) {
   const materialOptions = {
     map: skin ? textureLoader.load(skin) : playerTexture,
@@ -128,15 +118,12 @@ export function createPlayer(size, position, isSplit = false, skin, playerId) {
   mesh.position.y += 2;
   mesh.size = size;
   mesh.rotation.x = -Math.PI / 2;
-  mesh.isSplit = isSplit;
-  mesh.renderOrder = -1;
   mesh.playerId = playerId;
   scene.add(mesh);
   players.push(mesh);
   return mesh;
 }
 
-// Food Particles Setup
 const foodCount = 10000;
 const foodSize = 15;
 const foodHeight = -30;
@@ -171,7 +158,6 @@ function spawnFood() {
 }
 setTimeout(spawnFood, 1000);
 
-// Lade initial Spieler aus localStorage (vom Dashboard)
 function loadPlayersFromLobby() {
   const data = localStorage.getItem("gameData");
   if (!data) {
@@ -191,8 +177,8 @@ function loadPlayersFromLobby() {
 }
 window.addEventListener("DOMContentLoaded", loadPlayersFromLobby);
 
-// ===================== PART 5 =====================
-// Update Camera: Nutzt den Durchschnitt aller Spielerpositionen
+
+// game.js – Teil 5: Kamera und Animation
 function updateCamera() {
   if (players.length === 0) return;
   const avgPosition = new THREE.Vector3(0, 0, 0);
@@ -200,7 +186,7 @@ function updateCamera() {
     avgPosition.add(player.position);
   });
   avgPosition.divideScalar(players.length);
-  // Fester Offset – hier 800 Einheiten nach oben und hinten
+  // Fester Offset – hier z. B. 800 Einheiten nach oben und hinten
   const offset = new THREE.Vector3(0, 800, 800);
   camera.position.copy(avgPosition).add(offset);
   camera.lookAt(avgPosition);
@@ -208,15 +194,15 @@ function updateCamera() {
 }
 
 function updatePlayerMovement() {
-  // Hier könntest du Eingaben verarbeiten und Bewegungsdaten an den Server senden.
+  // Hier kannst du Eingaben verarbeiten und Bewegungsdaten an den Server senden.
 }
 
 function checkFoodCollision() {
-  // Implementiere Kollisionserkennung zwischen Spielern und Food.
+  // Hier implementierst du Kollisionserkennung zwischen Spielern und Food.
 }
 
 function checkProjectileCollision() {
-  // Implementiere Kollisionserkennung für Projektile.
+  // Hier implementierst du Kollisionserkennung für Projektile.
 }
 
 function updateHUD() {
@@ -269,7 +255,7 @@ animate();
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "e" && players.length > 0) {
-    shootLaser(players[0], scene, undefined);
+    shootLaser(players[0], scene, null);
   }
 });
 document.addEventListener("keydown", (event) => {
@@ -278,7 +264,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-// FBXLoader und Beispielobjekt laden
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 const loader = new FBXLoader();
 
@@ -289,30 +274,14 @@ function loadObject(path, scale, position, isRunestone = false) {
     fbx.updateMatrixWorld(true);
     fbx.traverse((child) => {
       if (child.isMesh) {
-        if (isRunestone && child.name.toLowerCase().includes("crystal")) {
-          child.material = new THREE.MeshPhysicalMaterial({
-            map: textureLoader.load("textures/Diffuse_cristal.jpg"),
-            normalMap: textureLoader.load("textures/Normal_cristal.jpg"),
-            emissiveMap: textureLoader.load("textures/Emission_cristal.jpg"),
-            emissive: new THREE.Color(0.3, 0.8, 1),
-            emissiveIntensity: 50.0,
-            roughness: 0.1,
-            metalness: 0.2,
-            transmission: 10.9,
-            thickness: 10,
-            clearcoat: 1,
-            clearcoatRoughness: 0.1,
-            transparent: true
-          });
-        } else {
-          child.material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0.3, 0.9, 1),
-            roughness: 0.2,
-            metalness: 0.1,
-            emissive: new THREE.Color(0.3, 0.9, 1),
-            emissiveIntensity: 0.6
-          });
-        }
+        // Beispiel für spezielle Materialien
+        child.material = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0.3, 0.9, 1),
+          roughness: 0.2,
+          metalness: 0.1,
+          emissive: new THREE.Color(0.3, 0.9, 1),
+          emissiveIntensity: 0.6
+        });
         child.castShadow = true;
         child.receiveShadow = true;
       }
@@ -323,6 +292,5 @@ function loadObject(path, scale, position, isRunestone = false) {
     console.error("❌ Error loading FBX:", error);
   });
 }
-
 
 

@@ -1,9 +1,8 @@
 // rooms/MyRoom.js
-import pkg from "colyseus"; 
+import pkg from "colyseus";
 const { Room } = pkg;
 import { Schema, MapSchema } from "@colyseus/schema";
 
-// Spieler-Schema ohne Decorators, statische Definition der Felder
 export class Player extends Schema {
   constructor() {
     super();
@@ -31,7 +30,6 @@ Player.schema = {
   lobby: "string"
 };
 
-// Zustand des Raumes
 export class MyRoomState extends Schema {
   constructor() {
     super();
@@ -43,7 +41,6 @@ MyRoomState.schema = {
   players: { map: Player }
 };
 
-// Raum-Klasse
 export class MyRoom extends Room {
   onCreate(options) {
     console.log("Room created with options:", options);
@@ -51,7 +48,7 @@ export class MyRoom extends Room {
   }
   
   onJoin(client, options) {
-    console.log(client.sessionId, "joined.");
+    console.log(`${client.sessionId} joined with options:`, options);
     const player = new Player();
     player.id = client.sessionId;
     player.name = options.username || "Anonymous";
@@ -62,11 +59,12 @@ export class MyRoom extends Room {
     
     this.state.players.set(client.sessionId, player);
     
-    // Sende den kompletten Zustand an alle Clients
+    console.log("Broadcasting state update:", this.state);
     this.broadcast("stateUpdate", this.state);
   }
   
   onMessage(client, message) {
+    console.log("Received message from", client.sessionId, ":", message);
     const player = this.state.players.get(client.sessionId);
     if (player && message.action === "move") {
       player.x = message.x;
@@ -76,7 +74,7 @@ export class MyRoom extends Room {
   }
   
   onLeave(client, consented) {
-    console.log(client.sessionId, "left.");
+    console.log(`${client.sessionId} left.`);
     this.state.players.delete(client.sessionId);
     this.broadcast("stateUpdate", this.state);
   }
