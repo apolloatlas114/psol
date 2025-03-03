@@ -2,7 +2,7 @@
 import { Room } from "colyseus";
 import { Schema, MapSchema } from "@colyseus/schema";
 
-// Minimaler Spieler (ohne Decorators)
+// Spieler-Schema ohne Decorators, statische Definition der Felder
 export class Player extends Schema {
   constructor() {
     super();
@@ -14,10 +14,11 @@ export class Player extends Schema {
     this.score = 0;
     this.skin = "";
     this.mode = "free";
+    this.lobby = "";
   }
 }
 
-Schema.defineTypes(Player, {
+Player.schema = {
   id: "string",
   name: "string",
   x: "number",
@@ -25,10 +26,11 @@ Schema.defineTypes(Player, {
   size: "number",
   score: "number",
   skin: "string",
-  mode: "string"
-});
+  mode: "string",
+  lobby: "string"
+};
 
-// Zustand des Raumes
+// Raum-Zustand-Schema ohne Decorators
 export class MyRoomState extends Schema {
   constructor() {
     super();
@@ -36,11 +38,10 @@ export class MyRoomState extends Schema {
   }
 }
 
-Schema.defineTypes(MyRoomState, {
+MyRoomState.schema = {
   players: { map: Player }
-});
+};
 
-// Raum-Klasse
 export class MyRoom extends Room {
   onCreate(options) {
     console.log("Room created with options:", options);
@@ -55,14 +56,15 @@ export class MyRoom extends Room {
     player.x = Math.random() * 1000 - 500;
     player.z = Math.random() * 1000 - 500;
     player.skin = "textures/playerSkin1.png";
+    player.lobby = "lobby-" + Date.now();
     
     this.state.players.set(client.sessionId, player);
-    // Sende den kompletten Zustand an alle Clients
+    
+    // Sende den Zustand an alle Clients
     this.broadcast("stateUpdate", this.state);
   }
   
   onMessage(client, message) {
-    // Beispiel: Wenn ein Client eine "move"-Nachricht sendet
     const player = this.state.players.get(client.sessionId);
     if (player && message.action === "move") {
       player.x = message.x;
