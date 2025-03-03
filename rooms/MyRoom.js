@@ -2,7 +2,7 @@
 import { Room } from "colyseus";
 import { Schema, MapSchema } from "@colyseus/schema";
 
-// Spieler-Schema (ohne Decorators, mit Schema.defineTypes)
+// Minimaler Spieler (ohne Decorators)
 export class Player extends Schema {
   constructor() {
     super();
@@ -14,7 +14,6 @@ export class Player extends Schema {
     this.score = 0;
     this.skin = "";
     this.mode = "free";
-    this.lobby = "";
   }
 }
 
@@ -26,11 +25,10 @@ Schema.defineTypes(Player, {
   size: "number",
   score: "number",
   skin: "string",
-  mode: "string",
-  lobby: "string"
+  mode: "string"
 });
 
-// Raum-Zustand-Schema
+// Zustand des Raumes
 export class MyRoomState extends Schema {
   constructor() {
     super();
@@ -56,19 +54,15 @@ export class MyRoom extends Room {
     player.name = options.username || "Anonymous";
     player.x = Math.random() * 1000 - 500;
     player.z = Math.random() * 1000 - 500;
-    player.size = 40;
-    player.score = 0;
     player.skin = "textures/playerSkin1.png";
-    player.lobby = "lobby-" + Date.now();
     
     this.state.players.set(client.sessionId, player);
-    // Sende den Zustand an alle Clients (Lobby und Spiel)
+    // Sende den kompletten Zustand an alle Clients
     this.broadcast("stateUpdate", this.state);
-    // Optional: sende auch eine separate Wartelisten-Nachricht
-    this.broadcast("waitingRoomUpdate", Array.from(this.state.players.values()));
   }
   
   onMessage(client, message) {
+    // Beispiel: Wenn ein Client eine "move"-Nachricht sendet
     const player = this.state.players.get(client.sessionId);
     if (player && message.action === "move") {
       player.x = message.x;
@@ -81,7 +75,6 @@ export class MyRoom extends Room {
     console.log(client.sessionId, "left.");
     this.state.players.delete(client.sessionId);
     this.broadcast("stateUpdate", this.state);
-    this.broadcast("waitingRoomUpdate", Array.from(this.state.players.values()));
   }
   
   onDispose() {

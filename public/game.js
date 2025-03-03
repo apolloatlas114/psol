@@ -1,1040 +1,328 @@
-// ✅ Import Three.js
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@latest/build/three.module.js';
+// ===================== PART 1 =====================
+// --- Imports ---
+import * as THREE from "three";
+import { ejectMass, updateEjectedMass, checkEjectedMassCollision } from "./js/ejectMass.js";
+import { shootLaser, updateLasers, playerLasers } from "./js/laserShots.js";
 
+// Globale Variablen & Clock
+const clock = new THREE.Clock();
+let players = []; // Array für Spieler-Meshes
+let endTime = Date.now() + 20 * 60 * 1000; // 20 Minuten Timer
 
-
-const clock = new THREE.Clock(); // ✅ Define the clock at the top of your game.js
-
-
-
-import { ejectMass, updateEjectedMass, checkEjectedMassCollision } from './js/ejectMass.js';
-
-
-import { shootLaser, updateLasers, playerLasers } from './js/laserShots.js';
-
-
-
-
-import { socket } from './multiplayer.js';
-
-
-
-socket.on("updateScore", ({ id, score }) => {
-    if (players[id]) {
-        players[id].score = score;
+// updateState: Wird vom Raum über "stateUpdate" aufgerufen
+export function updateState(state) {
+  const statePlayers = state.players;
+  // Für jeden Spieler im Zustand
+  for (const id in statePlayers) {
+    const data = statePlayers[id];
+    let mesh = players.find(p => p.playerId === id);
+    if (mesh) {
+      mesh.position.set(data.x, 40, data.z);
+      mesh.size = data.size;
+      mesh.score = data.score;
+    } else {
+      mesh = createPlayer(data.size || 40, new THREE.Vector3(data.x, 40, data.z), false, data.skin, id);
     }
-    updateHUD(); // 🔥 Ensure HUD updates when the score changes
-});
+  }
+  // Entferne Spieler, die nicht mehr im Zustand sind
+  players = players.filter(p => statePlayers[p.playerId]);
+}
 
 
-
-
-
-socket.on("updateLeaderboard", (leaderboard) => {
-    console.log("📊 Received leaderboard update:", leaderboard);
-
-    let leaderboardElement = document.getElementById("leaderboard-list");
-    leaderboardElement.innerHTML = ""; // ✅ Clear old leaderboard before updating
-
-    leaderboard.forEach((player, index) => {
-        console.log(`🔍 Player ${index + 1}:`, player); // ✅ Debugging to see name & score
-
-        let listItem = document.createElement("li");
-
-        // ✅ Ensure player has a name
-        if (player.name && player.name.trim() !== "") {
-            listItem.innerHTML = `#${index + 1}: <span class="player-name">${player.name}</span> - <span class="player-score">${Math.floor(player.score)}</span>`;
-        } else {
-            console.warn(`⚠️ Missing player name for index ${index}. Full player object:`, player);
-            listItem.innerHTML = `#${index + 1}: <span class="player-name">UNKNOWN</span> - <span class="player-score">${Math.floor(player.score)}</span>`;
-        }
-
-        // ✅ Highlight the current player in GOLD
-        if (player.id === socket.id) {
-            listItem.classList.add("current-player");
-        }
-
-        leaderboardElement.appendChild(listItem);
-    });
-
-    console.log("✅ Leaderboard updated successfully!");
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ✅ Create Scene
+// ===================== PART 2 =====================
+// Szenen- und Renderer-Setup
 const scene = new THREE.Scene();
-if (!scene) {
-    console.error('❌ Scene konnte nicht erstellt werden!');
-} else {
-    console.log('✅ Scene erfolgreich erstellt!');
-}
-
-console.log('✅ THREE.js geladen:', THREE);
-console.log('🔍 Scene Objects:', scene.children);
-
-let players = [];
-let foodProjectiles = [];
-let splitCooldown = 10000; // 10 Sekunden Cooldown
-let lastSplitTime = 0;
-let canSplit = true; // Flag, um mehrfaches Splitten zu verhindern
-
-console.log('📌 Existiert players?', typeof players !== 'undefined');
-console.log('📌 Inhalt von players:', players);
-console.log('📌 Anzahl der Spieler:', players?.length || 0);
-
-// ✅ Lade die Textur für den Spieler
-
-// ✅ 20-Minuten Timer setzen
-let endTime = Date.now() + 20 * 60 * 1000; // 20 Minuten ab jetzt
-
-console.log('Canvas gefunden:', document.querySelector('canvas'));
-
-// ✅ Initialize WebGL Renderer
-let renderer;  // 🌟 Globale Variable für Renderer
-
+let renderer;
 function initRenderer() {
-    renderer = new THREE.WebGLRenderer({ 
-        powerPreference: "high-performance", 
-        antialias: false,
-        alpha: false // ✅ Prevents unnecessary transparency issues
-    });
-
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.NoToneMapping; // Ensures uniform brightness
-    renderer.toneMappingExposure = 1;  // Keep brightness natural
-
-    document.body.appendChild(renderer.domElement);
-
+  renderer = new THREE.WebGLRenderer({
+    powerPreference: "high-performance",
+    antialias: false,
+    alpha: false
+  });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMappingExposure = 1;
+  document.body.appendChild(renderer.domElement);
 }
-
-
-
-
-
-
-// 🟢 Rufe die Funktion auf, um den Renderer zu initialisieren
 initRenderer();
 
-// ✅ Create Camera (Fixed Perspective)
+// Kamera-Setup
 const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 50000);
 camera.position.set(0, 10, 10);
 camera.lookAt(0, 0, 0);
 
-// ✅ Camera Rotation Variables
-let cameraYaw = 0;  // Rotation angle in radians
-const cameraRotateSpeed = 0.03; // Adjust this for faster/slower rotation
-let rotatingLeft = false;
-let rotatingRight = false;
 
-
-
-
-console.log('✅ Kamera erfolgreich erstellt:', camera);
-
-// ✅ Large Map (Fixed Grid Rendering)
+// ===================== PART 3 =====================
+// Grid & Map
 const gridSize = 100000;
-
-// Erstellt das Grid-Material mit Polygon Offset
 const gridMaterial = new THREE.LineBasicMaterial({
-    color: 0x001100,
-    linewidth: 5,
-    polygonOffset: true,  // **Vermeidet Flackern mit dem Boden**
-    polygonOffsetFactor: -1,  // **Drückt es in der Rendering-Reihenfolge leicht nach vorne**
-    polygonOffsetUnits: -1
+  color: 0x001100,
+  linewidth: 5,
+  polygonOffset: true,
+  polygonOffsetFactor: -1,
+  polygonOffsetUnits: -1
 });
-
-// Erstellt das Grid mit dem optimierten Material
 const gridHelper = new THREE.GridHelper(gridSize, 300);
 gridHelper.material = gridMaterial;
-gridHelper.position.y = -10;  // Leicht über die Boden-Textur anheben
-
-// Stellt sicher, dass das Grid nach dem Boden gerendert wird
-gridHelper.renderOrder = 1;
+gridHelper.position.y = -10;
 scene.add(gridHelper);
 
-// ✅ Ambient Light
-
-
-
-// ✅ Soft Ambient Light to Remove Extreme Shadows
-// ✅ Restore Original Ambient Light (Soft & Even Lighting)
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // ✅ Adjust intensity if needed
+// Ambient Light
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
 
-
-
-
-
-
-// ✅ Load the Ground Texture
+// Ground
 const textureLoader = new THREE.TextureLoader();
-const groundTexture = textureLoader.load('textures/platform1.jpg', function(texture) {
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(40, 40); // ✅ Texture tiling
-    texture.colorSpace = THREE.SRGBColorSpace;
+const groundTexture = textureLoader.load("textures/platform1.jpg", (texture) => {
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(40, 40);
+  texture.colorSpace = THREE.SRGBColorSpace;
 });
-
-// ✅ Adjust Material to be Less Dark & More Realistic
 const groundMaterial = new THREE.MeshStandardMaterial({
-    map: groundTexture,
-    side: THREE.DoubleSide,
-    roughness: 20, // ✅ Reduce roughness to avoid extreme darkness
-    metalness: 0.0, // ✅ No metallic reflections
-    emissive: new THREE.Color(0x000000), // ✅ No glow effect
-    emissiveIntensity: 0.0 // ✅ Ensure ground is not glowing
+  map: groundTexture,
+  side: THREE.DoubleSide,
+  roughness: 20,
+  metalness: 0.0,
+  emissive: new THREE.Color(0x000000),
+  emissiveIntensity: 0.0
 });
-
-
-// ✅ Create Ground Plane
 const groundGeometry = new THREE.PlaneGeometry(gridSize, gridSize);
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -35;
-ground.receiveShadow = true; // ✅ Enable shadows but don't make it too dark
+ground.receiveShadow = true;
 scene.add(ground);
 
-
-
-// ✅ Lade die Textur für den Spieler
-const playerTexture = textureLoader.load('textures/playerSkinredalien1.png', function(texture) {
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-    texture.repeat.set(1, 1);
-    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    texture.flipY = false;
-    texture.needsUpdate = true;
-
-    // ✅ Set the center for rotation (MUST BE 0.5, 0.5)
-    texture.center.set(0.5, 0.5);
+// Spieler-Textur
+const playerTexture = textureLoader.load("textures/playerSkinredalien1.png", (texture) => {
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.repeat.set(1, 1);
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  texture.flipY = false;
+  texture.needsUpdate = true;
+  texture.center.set(0.5, 0.5);
 });
 
 
-
-
-
-scene.traverse((child) => {
-    if (child.isMesh) {
-        child.frustumCulled = true; // ✅ Hides objects outside the camera view
-    }
-});
-
-
-
-
-
-
-
-
-
-
-// ✅ Create Player mit PNG-Skin
-// ✅ Use InstancedMesh for Player Rendering Optimization
-const playerGeometry = new THREE.PlaneGeometry(50, 50);
-// ✅ Manually adjust UVs to fit the texture exactly
-const uvs = playerGeometry.attributes.uv.array;
-uvs[0] = 0.0; uvs[1] = 1.0; // Bottom-left
-uvs[2] = 1.0; uvs[3] = 1.0; // Bottom-right
-uvs[4] = 1.0; uvs[5] = 0.0; // Top-right
-uvs[6] = 0.0; uvs[7] = 0.0; // Top-left
-
-playerGeometry.attributes.uv.needsUpdate = true;
-
-const playerMaterial = new THREE.MeshStandardMaterial({
-    map: playerTexture,
+// ===================== PART 4 =====================
+// Funktion zum Erstellen eines Spieler-Meshs
+export function createPlayer(size, position, isSplit = false, skin, playerId) {
+  const materialOptions = {
+    map: skin ? textureLoader.load(skin) : playerTexture,
     transparent: true,
-    metalness: 0.0, // ✅ No metallic effect
-    roughness: 0.3, // ✅ Keep some roughness to avoid over-reflections
-    emissive: new THREE.Color(0x000000), // ✅ No glow effect
-    emissiveIntensity: 0.0
-});
-
-
-
-
-
-
-
-
-
-
-
-const maxPlayers = 500; // ✅ Support up to 500 players efficiently
-const playerMesh = new THREE.InstancedMesh(playerGeometry, playerMaterial, maxPlayers);
-
-scene.add(playerMesh);
-
-function updatePlayers() {
-    let matrix = new THREE.Matrix4();
-    
-    players.forEach((player, index) => {
-        matrix.setPosition(player.position.x, player.position.y, player.position.z);
-        playerMesh.setMatrixAt(index, matrix);
-    });
-
-    playerMesh.instanceMatrix.needsUpdate = true;
+    metalness: 0.1,
+    roughness: 0.3,
+    emissive: new THREE.Color(0, 0, 0),
+    emissiveIntensity: 0,
+    side: THREE.DoubleSide,
+  };
+  const dynamicMaterial = new THREE.MeshStandardMaterial(materialOptions);
+  const scaleFactor = 2.5;
+  const playerGeom = new THREE.PlaneGeometry(size * scaleFactor, size * scaleFactor);
+  playerGeom.translate(0, size * 0.75, 0);
+  const mesh = new THREE.Mesh(playerGeom, dynamicMaterial);
+  mesh.position.copy(position);
+  mesh.position.y += 2;
+  mesh.size = size;
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.isSplit = isSplit;
+  mesh.renderOrder = -1;
+  mesh.playerId = playerId;
+  scene.add(mesh);
+  players.push(mesh);
+  return mesh;
 }
 
-
-
-
-
-function mergeMeshes(meshes) {
-    let mergedGeometry = new THREE.BufferGeometry();
-    let mergedMaterial = meshes[0].material;
-    
-    meshes.forEach(mesh => {
-        mergedGeometry = BufferGeometryUtils.mergeBufferGeometries([mergedGeometry, mesh.geometry], true);
-    });
-
-    let mergedMesh = new THREE.Mesh(mergedGeometry, mergedMaterial);
-    scene.add(mergedMesh);
-}
-
-
-
-
-scene.traverse((child) => {
-    if (child.isMesh) {
-        child.castShadow = false;
-        child.receiveShadow = false;
-    }
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ✅ Food Particles with Black Hole Effect
-// ✅ Ultimate High-Quality Food with Optimized Glow & Performance
-const foodCount = 10000;  // 🔥 Reduce count for better performance but same visual density
-const foodSize = 15; // Larger so it’s more noticeable
-const foodHeight = -30; // Slightly above the ground
-
-// ✅ Optimized Material with Glass, Reflection, and Glow
+// Food Particles Setup
+const foodCount = 10000;
+const foodSize = 15;
+const foodHeight = -30;
 const foodMaterial = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(0.3, 0.9, 1), // Vibrant crystal blue
-    roughness: 0.05,  // Super smooth reflections
-    metalness: 0.6,  // Reflective shine
-    transmission: 0.95,  // Crystal glass effect
-    thickness: 8,  // Depth effect for realism
-    clearcoat: 1,  // Enhances sharp reflections
-    clearcoatRoughness: 0.05,  
-    emissive: new THREE.Color(0.2, 0.5, 1), // Soft glowing effect
-    emissiveIntensity: 0.8, // Balanced glow
+  color: new THREE.Color(0.3, 0.9, 1),
+  roughness: 0.05,
+  metalness: 0.6,
+  transmission: 0.95,
+  thickness: 8,
+  clearcoat: 1,
+  clearcoatRoughness: 0.05,
+  emissive: new THREE.Color(0.2, 0.5, 1),
+  emissiveIntensity: 0.8,
 });
-
-// ✅ Custom Sphere with Smooth Edges
 const foodGeometry = new THREE.IcosahedronGeometry(foodSize, 2);
 const foodMesh = new THREE.InstancedMesh(foodGeometry, foodMaterial, foodCount);
-
 let foodPositions = new Map();
 
 function spawnFood() {
-    for (let i = 0; i < foodCount; i++) {
-        const pos = new THREE.Vector3(
-    Math.random() * gridSize - gridSize / 2,
-    foodHeight,  // ✅ Lower height applied
-    Math.random() * gridSize - gridSize / 2
-);
-
-
-        foodPositions.set(i, pos);
-        let matrix = new THREE.Matrix4().setPosition(pos);
-        foodMesh.setMatrixAt(i, matrix);
-    }
-
-    foodMesh.instanceMatrix.needsUpdate = true;
-    scene.add(foodMesh);
+  for (let i = 0; i < foodCount; i++) {
+    const pos = new THREE.Vector3(
+      Math.random() * gridSize - gridSize / 2,
+      foodHeight,
+      Math.random() * gridSize - gridSize / 2
+    );
+    foodPositions.set(i, pos);
+    const matrix = new THREE.Matrix4().setPosition(pos);
+    foodMesh.setMatrixAt(i, matrix);
+  }
+  foodMesh.instanceMatrix.needsUpdate = true;
+  scene.add(foodMesh);
 }
-
-// ✅ Optimized Food Spawning with Delay to Avoid Lag
 setTimeout(spawnFood, 1000);
 
-
-
-
-
-// ✅ Movement Variables
-let moveSpeed = 20;
-let baseSpeed = 20;
-let targetPosition = null; // No movement at start
-let lastMouseTime = Date.now();
-let mouseIsMoving = false;
-
-// ✅ Mouse to World Position
-function getMouseWorldPosition(event) {
-    if (!renderer) return new THREE.Vector3();
-    
-    const rect = renderer.domElement.getBoundingClientRect();
-    const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    const mouseVector = new THREE.Vector3(mouseX, mouseY, 0.5);
-    
-    mouseVector.unproject(camera);
-    const dir = mouseVector.sub(camera.position).normalize();
-    const distance = -camera.position.y / dir.y;
-    
-    return camera.position.clone().add(dir.multiplyScalar(distance));
-}
-
-
-
-// ✅ Stores the last movement direction (Default: Right)
-let moveDirection = new THREE.Vector3(1, 0, 0); 
-
-document.addEventListener('mousemove', (event) => {
-    targetPosition = getMouseWorldPosition(event);
-    lastMouseTime = Date.now();
-    mouseIsMoving = true;
-
-    // ✅ Update direction when mouse moves
-    if (targetPosition) {
-        moveDirection.copy(targetPosition.clone().sub(players[0].position).normalize());
-    }
-});
-
-
-
-// ✅ Handle A/D Camera Rotation
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'a' || event.key === 'A') {
-        cameraYaw += cameraRotateSpeed; // Rotate left
-    }
-    if (event.key === 'd' || event.key === 'D') {
-        cameraYaw -= cameraRotateSpeed; // Rotate right
-    }
-});
-
-
-
-
-// ✅ Listen for Key Down (Start Rotation)
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'a' || event.key === 'A') rotatingLeft = true;
-    if (event.key === 'd' || event.key === 'D') rotatingRight = true;
-});
-
-// ✅ Listen for Key Up (Stop Rotation)
-document.addEventListener('keyup', (event) => {
-    if (event.key === 'a' || event.key === 'A') rotatingLeft = false;
-    if (event.key === 'd' || event.key === 'D') rotatingRight = false;
-});
-
-
-
-
-
-// ✅ Smooth Growth & Camera Zoom
-// ✅ Smooth Growth & Camera Zoom
-// ✅ Smooth Growth & Camera Zoom
-function updateGrowth() {
-    for (let player of players) {
-        // Scale the Player
-       player.scale.setScalar(player.size / 40);  // ✅ Reduce scale factor
-
-        let baseHeight = 500;   // Default camera height
-        let zoomFactor = 50;     // Adjusted zoom factor (smaller than before)
-        let maxZoomOut = 1500;  // Lower max limit to prevent extreme zoom-out
-
-        // ✅ Adjust camera height dynamically, but prevent over-scaling
-        let newHeight = baseHeight + Math.min(player.size * zoomFactor, maxZoomOut);
-        camera.position.y = newHeight;
-
-       // Recalculate the player's world position
-        player.getWorldPosition(player.position);
-
-        // Update camera position and lookAt
-camera.position.copy(player.position).add(new THREE.Vector3(0, 1000, 1500)); // Adjust camera's relative position to the player
-camera.lookAt(player.position);
-        
-
-    }
-}
-
-
-
-
-// ✅ Black Hole Magnetic Effect
-function checkFoodCollision() {
-    let updatedFoodPositions = new Map();
-
-    for (let player of players) {
-        foodPositions.forEach((foodPos, key) => {
-            let distance = player.position.distanceTo(foodPos);
-            let absorptionRadius = player.size * 3;
-
-            if (distance < absorptionRadius) {
-                foodPos.lerp(player.position, 0.5); // Pull food toward player
-
-                if (distance < player.size * 1.3) {
-                    let growthFactor = 1 / (1 + player.size * 0.01);
-                    player.size += growthFactor;
-                    moveSpeed = Math.max(3, baseSpeed - (player.size / 20));
-
-                    // ✅ Remove the food first
-                    foodMesh.setMatrixAt(key, new THREE.Matrix4().setPosition(99999, 99999, 99999)); 
-                    foodMesh.instanceMatrix.needsUpdate = true;
-
-                    // ✅ Simple 3-second respawn delay
-                    setTimeout(() => {
-                        let newFoodPos = new THREE.Vector3(
-                            Math.random() * gridSize - gridSize / 2,
-                            foodHeight,
-                            Math.random() * gridSize - gridSize / 2
-                        );
-
-                        foodPositions.set(key, newFoodPos);
-                        foodMesh.setMatrixAt(key, new THREE.Matrix4().setPosition(newFoodPos.x, newFoodPos.y, newFoodPos.z));
-                        foodMesh.instanceMatrix.needsUpdate = true; // ✅ Update mesh
-                    }, 10000);
-                } else {
-                    updatedFoodPositions.set(key, foodPos);
-                }
-            } else {
-                updatedFoodPositions.set(key, foodPos);
-            }
-        });
-    }
-
-    foodMesh.instanceMatrix.needsUpdate = true;
-    foodPositions = updatedFoodPositions;
-}
-
-
-// ✅ Split Function
-function splitPlayer(player) {
-    if (player.size <= 100 || player.isSplit) {
-        console.log('Spieler kann sich nicht teilen!');
-        return;
-    }
-
-    if (Date.now() - lastSplitTime < splitCooldown) {
-        console.log('Cooldown noch nicht abgelaufen!');
-        return;
-    }
-
-    lastSplitTime = Date.now();
-
-    let newSize = player.size / 2;
-
-    // Erstelle den neuen Spieler an der gleichen Position
-    let newPlayer = createPlayer(newSize, player.position.clone(), true);
-
-    // Aktualisiere den ursprünglichen Spieler
-    player.size = newSize;
-    player.isSplit = true;
-
-    console.log('Spieler in zwei Teile geteilt!');
-}
-
-// ✅ Merge Function
-function mergePlayers() {
-    if (Date.now() - lastSplitTime < splitCooldown) {
-        return; // Cooldown noch nicht abgelaufen
-    }
-
-    let mergedPlayers = [];
-    for (let i = 0; i < players.length; i++) {
-        if (players[i].isSplit) {
-            for (let j = i + 1; j < players.length; j++) {
-                if (players[j].isSplit && players[i].position.distanceTo(players[j].position) < 1) {
-                    // Merge these players
-                    players[i].size += players[j].size;
-                    scene.remove(players[j]);
-                    mergedPlayers.push(players[j]);
-                    players[i].isSplit = false;
-                    break;
-                }
-            }
-        }
-    }
-    players = players.filter(p => !mergedPlayers.includes(p));
-}
-
-
-
-
-// ✅ Check Projectile Collision
-function checkProjectileCollision() {
-    for (let i = foodProjectiles.length - 1; i >= 0; i--) {
-        let projectile = foodProjectiles[i];
-        for (let player of players) {
-            let distance = player.position.distanceTo(projectile.position);
-            if (distance < player.size / 2 + projectile.userData.size / 2) {
-                // Spieler isst das Projektil
-                player.size += projectile.userData.size / 2;
-                scene.remove(projectile);
-                foodProjectiles.splice(i, 1);
-                break;
-            }
-        }
-    }
-}
-
-
-
-
-
-
-
-// ✅ Final Fix - Continuous Movement Without Stuttering
-function updatePlayerMovement() {
-    for (let player of players) {
-        const currentTime = Date.now();
-        const timeSinceLastMouseMove = currentTime - lastMouseTime;
-
-        // ✅ Keep moving in the last direction, even if mouse stops
-        if (timeSinceLastMouseMove > 100) {
-            mouseIsMoving = false;
-        }
-
-        let speedFactor = moveSpeed * (player.size / 20);
-        let newPosition = player.position.clone().add(moveDirection.clone().multiplyScalar(speedFactor));
-
-        // ✅ Prevent movement outside map edges
-        let halfGrid = gridSize / 2;
-        newPosition.x = THREE.MathUtils.clamp(newPosition.x, -halfGrid, halfGrid);
-        newPosition.z = THREE.MathUtils.clamp(newPosition.z, -halfGrid, halfGrid);
-
-        player.position.copy(newPosition);
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ✅ Animation Loop (mit HUD-Update)
-// ✅ Animation Loop (No Movement Freeze)
-function animate() {
-    requestAnimationFrame(animate);
-
-    if (!renderer) return;
-
-    const delta = clock.getDelta();  // ✅ Correctly use clock
-    const currentTime = clock.getElapsedTime(); // ✅ Correctly define currentTime
-
-    updatePlayerMovement();   
-
-
-    updateLasers(scene, players);
-
-
-    
-    updateEjectedMass(); // ✅ Move ejected food
-    checkEjectedMassCollision(players, scene); // ✅ Check if players eat food
-        
-
-
-    
-
-  
-    updateGrowth();
-
-      // ✅ Rotate ONLY the player skin (PNG)
-    if (playerMaterial) {
-        playerMaterial.map.rotation += 0.02; // Adjust speed for rotation
-    }
-    
-    
-
-
-
-
-
-
-    checkFoodCollision();
-    updateGrowth();
-    mergePlayers();
-    checkProjectileCollision();
-
-    // Bewege die abgeschossenen Futterpartikel
-    for (let projectile of foodProjectiles) {
-        if (projectile.userData && projectile.userData.direction) {
-            projectile.position.add(projectile.userData.direction);
-            projectile.userData.direction.multiplyScalar(0.95);
-            if (projectile.userData.direction.length() < 0.1) {
-                projectile.userData.direction.set(0, 0, 0);
-            }
-        }
-    }
-
-    checkProjectileCollision();
-
-    // Kamera-Follow
-// ✅ Smooth Camera Rotation Every Frame
-// ✅ Increase Rotation Speed for Instant Response
-// ✅ Increase Rotation Speed for Instant Response
-let rotationSpeed = 0.08; // 🔥 Adjust this for even faster turning
-
-// 🆕 Add variable for fixed pitch angle
-let fixedPitchAngle = Math.PI / 6; // Adjust this value to change the camera angle (e.g., Math.PI/6 is 30 degrees)
-
-// ✅ Handle A/D Rotation Outside of Camera Zoom Logic
-if (rotatingLeft) cameraYaw += rotationSpeed;
-if (rotatingRight) cameraYaw -= rotationSpeed;
-
-if (players.length > 0) {
-    let player = players[0];
-
-    let baseDistance = 1000;  // 🔥 Closer default distance
-    let maxDistance = 2000;   // 🔥 Adjusted zoom-out limit
-    let scaleFactor = 2;      // 🔥 Zoom-out based on growth
-
-    let newDistance = baseDistance + Math.min(player.size * scaleFactor, maxDistance);
-
-    let tiltOffset = 1000; // 🔥 Move this UP (-) or DOWN (+) to tilt
-
-    // ✅ Updated Camera Rotation with Fixed Pitch Angle
-    let offsetX = Math.sin(cameraYaw) * newDistance * Math.cos(fixedPitchAngle);
-    let offsetY = Math.sin(fixedPitchAngle) * newDistance;
-    let offsetZ = Math.cos(cameraYaw) * newDistance * Math.cos(fixedPitchAngle);
-    
-    // ✅ APPLY CAMERA TILT OFFSET (Fixes the viewing angle)
-    camera.position.set(
-        player.position.x + offsetX,
-        player.position.y + tiltOffset + offsetY,  // 🔥 This moves the tilt UP or DOWN
-        player.position.z + offsetZ
-    );
-
-    let playerCenter = new THREE.Vector3(
-        player.position.x, 
-        player.position.y + (player.size / 2), 
-        player.position.z
-    );
-
-    camera.lookAt(playerCenter);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-function interpolatePlayerMovement(player, serverPosition) {
-    player.position.lerp(serverPosition, 0.1); // ✅ Smoothly move towards real position
-}
-
-
-
-
-function updatePlayers() {
-    let matrix = new THREE.Matrix4();
-
-    players.forEach((player, index) => {
-        matrix.setPosition(player.position.x, player.position.y, player.position.z);
-        playerMesh.setMatrixAt(index, matrix);
+// Lade initial Spieler aus localStorage (vom Dashboard)
+function loadPlayersFromLobby() {
+  const data = localStorage.getItem("gameData");
+  if (!data) {
+    console.error("No game data found. Cannot load players.");
+    return;
+  }
+  try {
+    const gameData = JSON.parse(data);
+    const playersData = gameData.players;
+    players = [];
+    playersData.forEach((p) => {
+      createPlayer(p.size || 40, new THREE.Vector3(p.x, 40, p.z), false, p.skin, p.id);
     });
-
-    playerMesh.instanceMatrix.needsUpdate = true;
+  } catch (err) {
+    console.error("Error parsing gameData:", err);
+  }
 }
+window.addEventListener("DOMContentLoaded", loadPlayersFromLobby);
 
-
-
-
-
-
-let lastCameraPos = new THREE.Vector3();
-
+// ===================== PART 5 =====================
+// Update Camera: Nutzt den Durchschnitt aller Spielerpositionen
 function updateCamera() {
-    if (lastCameraPos.equals(camera.position)) return; // ✅ Skip unnecessary updates
-    lastCameraPos.copy(camera.position);
-    camera.lookAt(players[0].position);
+  if (players.length === 0) return;
+  const avgPosition = new THREE.Vector3(0, 0, 0);
+  players.forEach(player => {
+    avgPosition.add(player.position);
+  });
+  avgPosition.divideScalar(players.length);
+  // Fester Offset – hier 800 Einheiten nach oben und hinten
+  const offset = new THREE.Vector3(0, 800, 800);
+  camera.position.copy(avgPosition).add(offset);
+  camera.lookAt(avgPosition);
+  console.log("Avg Position:", avgPosition, "Camera:", camera.position);
 }
 
-
-
-
-
-
-
-
-    // HUD-Updates
-    if (players.length > 0) {
-        document.getElementById('score').innerText = 'Score: ' + Math.floor(players[0].size);
-    }
-
-    let remainingTime = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-    let minutes = Math.floor(remainingTime / 60);
-    let seconds = remainingTime % 60;
-    document.getElementById('timer').innerText = `Time: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-
-    let leaderboardElement = document.getElementById('leaderboard-list');
-    if (leaderboardElement) {
-        let sortedPlayers = players.slice().sort((a, b) => b.size - a.size).slice(0, 10);
-        leaderboardElement.innerHTML = sortedPlayers.map((player, index) =>
-            `<li>#${index + 1}: Score ${Math.floor(player.size)}</li>`
-        ).join('');
-    }
-
-
-
-
-
-players.forEach(player => {
-    let distance = camera.position.distanceTo(player.position);
-    if (distance > 5000) {
-        player.visible = false; // ✅ Hide distant players
-    } else {
-        player.visible = true; // ✅ Show nearby players
-    }
-    playerLasers.set(player, 3); // Give each player 3 shots at the start
-});
-
-
-
-
-
-
-
-    renderer.render(scene, camera);
+function updatePlayerMovement() {
+  // Hier könntest du Eingaben verarbeiten und Bewegungsdaten an den Server senden.
 }
 
-
-
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'e' && players.length > 0) {
-        shootLaser(players[0], scene, targetPosition);
-    }
-});
-
-
-
-
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'w' && players.length > 0) {
-        ejectMass(players[0], scene, foodMaterial);
-    }
-});
-
-
-
-
-
-
-
-
-
-
-import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@latest/examples/jsm/loaders/FBXLoader.js';
-
-const loader = new FBXLoader();
-
-// ✅ Use the already existing `foodHeight` variable
-console.log("🔥 Using foodHeight:", foodHeight); // Debug to check the value
-
-function loadObject(path, scale) {
-    let position = new THREE.Vector3(
-        (Math.random() - 0.5) * gridSize,  
-        foodHeight,  
-        (Math.random() - 0.5) * gridSize   
-    );
-
-    loader.load(path, function (fbx) {
-        fbx.scale.set(scale, scale, scale);
-        fbx.position.copy(position);
-        fbx.updateMatrixWorld(true);
-
-        // ✅ Better Glow on Ground with More Visibility
-        fbx.traverse((child) => {
-            if (child.isMesh) {
-                child.material = new THREE.MeshStandardMaterial({
-                    color: new THREE.Color(0.3, 0.9, 1), // ✅ Same color as food
-                    roughness: 0.2,  
-                    metalness: 0.1,  
-                    emissive: new THREE.Color(0.3, 0.9, 1), // ✅ Exact food color
-                    emissiveIntensity: 0.6 // 🔥 More visible glow (Adjust this)
-                });
-
-                child.castShadow = false;
-                child.receiveShadow = false;
-            }
-        });
-
-        scene.add(fbx);
-        console.log(`✅ Object Loaded: ${path} at`, fbx.position);
-    }, undefined, function (error) {
-        console.error('❌ Error loading FBX:', error);
-    });
+function checkFoodCollision() {
+  // Implementiere Kollisionserkennung zwischen Spielern und Food.
 }
 
-
-
-
-const objectPositions = []; // ✅ Stores placed positions
-let objectsPlaced = false; // ✅ Prevent multiple calls
-
-function placeStaticObjects() {
-    if (objectsPlaced) return; // ✅ Prevent duplicate spawning
-    objectsPlaced = true;
-
-    let maxObjects = 100;
-    let minDistance = 800; // ✅ Minimum distance between objects
-
-    while (objectPositions.length < maxObjects) {
-        let randomX = (Math.random() - 0.5) * gridSize;
-        let randomZ = (Math.random() - 0.5) * gridSize;
-        
-        let newPosition = new THREE.Vector3(randomX, foodHeight, randomZ); // ✅ Exact same height as food
-
-        // ✅ Ensure objects don't spawn too close to each other
-        let tooClose = objectPositions.some(pos => pos.distanceTo(newPosition) < minDistance);
-        if (!tooClose) {
-            loadObject('models/crystalBLUE.fbx', 70);  // ✅ Corrected function call
-            objectPositions.push(newPosition);
-        }
-    }
+function checkProjectileCollision() {
+  // Implementiere Kollisionserkennung für Projektile.
 }
-
-placeStaticObjects(); // ✅ Call function once
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-function createPlayer(size, position, isSplit = false) {
-    console.log('📌 Erstelle Spieler mit Position:', position);
-
-    const playerMaterial = new THREE.MeshStandardMaterial({
-        map: playerTexture,
-        transparent: true,
-        metalness: 0.1,  // ✅ Lower metallic effect to keep texture original
-        roughness: 0.3,  // ✅ Balanced shine
-        emissive: new THREE.Color(0, 0, 0), // ✅ No blue tint
-        emissiveIntensity: 0, // ✅ Remove unwanted glow
-        side: THREE.DoubleSide, // Ensure both sides of the plane are visible
-    });
-
-    const scaleFactor = 2.5;
-    const playerGeometry = new THREE.PlaneGeometry(size * scaleFactor, size * scaleFactor);
-
-    // ✅ Center the geometry based on the image's perceived center
-    // Assuming your image's center is at (0, size * 0.75)
-    // You might need to adjust 0.75 to match your specific image
-    playerGeometry.translate(0, size * 0.75, 0); // Adjust this value
-
-    const player = new THREE.Mesh(playerGeometry, playerMaterial);
-
-    player.position.copy(position);
-    player.position.y += 2; // ✅ Move player slightly up to avoid clipping
-
-    player.size = size;
-    player.rotation.x = -Math.PI / 2;
-
-    //  // ✅ Ensures player always faces the camera
-    
-
-    player.isSplit = isSplit;
-    player.renderOrder = -1;
-
-    scene.add(player);
-    players.push(player);
-    return player;
-}
-
 
 function updateHUD() {
-    if (players[socket.id]) {
-        document.getElementById("scoreCounter").innerText = Math.floor(players[socket.id].score);
-    }
+  const scoreElement = document.getElementById("scoreCounter");
+  if (players.length > 0 && scoreElement) {
+    scoreElement.innerText = Math.floor(players[0].size);
+  }
 }
 
-function checkGameEnd() {
-    let remainingTime = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-    if (remainingTime === 0) {
-        console.log("⏳ Game Over!");  
-        socket.emit("gameOver"); // Inform server to stop tracking scores
-        document.getElementById("hud").innerHTML = "<h1>Game Over</h1>";
-    }
+function animate() {
+  requestAnimationFrame(animate);
+  if (!renderer) return;
+  const delta = clock.getDelta();
+  
+  updatePlayerMovement();
+  updateLasers(scene, players);
+  updateEjectedMass();
+  checkEjectedMassCollision(players, scene);
+  
+  updateCamera();
+  
+  checkFoodCollision();
+  checkProjectileCollision();
+  
+  let remainingTime = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+  let minutes = Math.floor(remainingTime / 60);
+  let seconds = remainingTime % 60;
+  const timerElement = document.getElementById("timer");
+  if (timerElement) {
+    timerElement.innerText = `Time: ${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+  }
+  
+  const leaderboardElement = document.getElementById("leaderboard-list");
+  if (leaderboardElement) {
+    let sortedPlayers = players.slice().sort((a, b) => b.size - a.size).slice(0, 10);
+    leaderboardElement.innerHTML = sortedPlayers.map((p, i) =>
+      `<li>#${i + 1}: Score ${Math.floor(p.size)}</li>`
+    ).join("");
+  }
+  
+  players.forEach(player => {
+    let distanceToCamera = camera.position.distanceTo(player.position);
+    player.visible = (distanceToCamera <= 10000);
+    playerLasers.set(player, 3);
+  });
+  
+  renderer.render(scene, camera);
 }
-setInterval(checkGameEnd, 1000);
-
-
-
-// ✅ Spieler wird NUR EINMAL erstellt, nicht in der Funktion selbst
-createPlayer(40, new THREE.Vector3(0, 40, 0));
-
-// ✅ Fenster-Resize-Handler
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
 animate();
 
+document.addEventListener("keydown", (event) => {
+  if (event.key === "e" && players.length > 0) {
+    shootLaser(players[0], scene, undefined);
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "w" && players.length > 0) {
+    ejectMass(players[0], scene, foodMaterial);
+  }
+});
 
+// FBXLoader und Beispielobjekt laden
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+const loader = new FBXLoader();
 
+function loadObject(path, scale, position, isRunestone = false) {
+  loader.load(path, (fbx) => {
+    fbx.scale.set(scale, scale, scale);
+    fbx.position.copy(position);
+    fbx.updateMatrixWorld(true);
+    fbx.traverse((child) => {
+      if (child.isMesh) {
+        if (isRunestone && child.name.toLowerCase().includes("crystal")) {
+          child.material = new THREE.MeshPhysicalMaterial({
+            map: textureLoader.load("textures/Diffuse_cristal.jpg"),
+            normalMap: textureLoader.load("textures/Normal_cristal.jpg"),
+            emissiveMap: textureLoader.load("textures/Emission_cristal.jpg"),
+            emissive: new THREE.Color(0.3, 0.8, 1),
+            emissiveIntensity: 50.0,
+            roughness: 0.1,
+            metalness: 0.2,
+            transmission: 10.9,
+            thickness: 10,
+            clearcoat: 1,
+            clearcoatRoughness: 0.1,
+            transparent: true
+          });
+        } else {
+          child.material = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(0.3, 0.9, 1),
+            roughness: 0.2,
+            metalness: 0.1,
+            emissive: new THREE.Color(0.3, 0.9, 1),
+            emissiveIntensity: 0.6
+          });
+        }
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    scene.add(fbx);
+    console.log(`✅ Object Loaded: ${path} at`, fbx.position);
+  }, undefined, (error) => {
+    console.error("❌ Error loading FBX:", error);
+  });
+}
 
 
 
