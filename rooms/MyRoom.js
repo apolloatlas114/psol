@@ -1,5 +1,6 @@
 // rooms/MyRoom.js
-import { Room } from "colyseus";
+import pkg from "colyseus"; 
+const { Room } = pkg;
 import { Schema, MapSchema } from "@colyseus/schema";
 
 // Spieler-Schema ohne Decorators, statische Definition der Felder
@@ -30,7 +31,7 @@ Player.schema = {
   lobby: "string"
 };
 
-// Raum-Zustand-Schema ohne Decorators
+// Zustand des Raumes
 export class MyRoomState extends Schema {
   constructor() {
     super();
@@ -42,6 +43,7 @@ MyRoomState.schema = {
   players: { map: Player }
 };
 
+// Raum-Klasse
 export class MyRoom extends Room {
   onCreate(options) {
     console.log("Room created with options:", options);
@@ -60,7 +62,7 @@ export class MyRoom extends Room {
     
     this.state.players.set(client.sessionId, player);
     
-    // Sende den Zustand an alle Clients
+    // Sende den kompletten Zustand an alle Clients
     this.broadcast("stateUpdate", this.state);
   }
   

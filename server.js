@@ -1,12 +1,16 @@
 // server.js
 import dotenv from "dotenv";
 import express from "express";
+
+
 import http from "http";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Server } from "colyseus";
+import pkg from "colyseus";
+const { Server } = pkg;
 
+import { monitor } from "@colyseus/monitor";
 import { MyRoom } from "./rooms/MyRoom.js";
 
 dotenv.config();
@@ -27,7 +31,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 // Optionaler Colyseus-Monitor (zur Überwachung des Servers)
-
+app.use("/colyseus", monitor());
 
 // Erstelle Colyseus-Server und definiere den Raum "my_room"
 const gameServer = new Server({ server });
