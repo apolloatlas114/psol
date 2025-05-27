@@ -1,6 +1,11 @@
 // rooms/MyRoom.js
+
+import colyseus from "colyseus";
+const { Room } = colyseus;
+
 import pkg from "colyseus";
-const { Room } = pkg;
+
+
 import { Schema, MapSchema } from "@colyseus/schema";
 
 export class Player extends Schema {

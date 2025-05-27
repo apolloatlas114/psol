@@ -1,12 +1,13 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@latest/build/three.module.js';
 
-const laserSpeed = 4550;
-const laserLifeTime = 3000; // Laser disappears after 3 seconds
+const laserSpeed = 3200; // noch schneller
+const laserLifeTime = 70; // verschwindet extrem schnell (0.07 Sekunden)
 export let playerLasers = new Map(); // Stores remaining laser shots
 
 let activeLasers = new Map(); // Tracks active lasers per player
 
-export function shootLaser(player, scene, mouseTarget) {
+// mouse: THREE.Vector2 (NDC), camera: THREE.Camera müssen übergeben werden!
+export function shootLaser(player, scene, mouse, camera) {
     if (!playerLasers.has(player)) {
         playerLasers.set(player, 3); // ✅ Each player starts with 3 lasers
     }
@@ -31,26 +32,49 @@ export function shootLaser(player, scene, mouseTarget) {
     playerLasers.set(player, remainingLasers - 1);
     console.log(`🔥 Laser fired by ${player.id}! Lasers left: ${remainingLasers - 1}`);
 
-    // 🔥 Laser Geometry & Material (Glow Effect)
-    const laserGeometry = new THREE.CylinderGeometry(2, 2, 250, 16); // Thin laser beam
+    // 🔥 Laser Geometry & Material (kleiner, dünner, kürzer, schneller)
+    const laserRadius = 0.7; // dünner
+    const laserLength = 60;  // kürzer
+    const laserGeometry = new THREE.CylinderGeometry(laserRadius, laserRadius, laserLength, 16);
     const laserMaterial = new THREE.MeshBasicMaterial({ 
         color: 0xff0000,  // 🔥 Red laser
     });
 
     const laser = new THREE.Mesh(laserGeometry, laserMaterial);
-    
-    // ✅ Position the laser correctly (same height as food)
+
+    // --- Raycasting von Kamera durch Maus auf Map-Ebene (foodHeight) ---
+    const foodHeight = -9; // Muss identisch mit foodHeight in game.js sein!
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -foodHeight);
+    const laserTarget = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, laserTarget);
+
+    // Startposition: Spielerposition auf foodHeight
     const laserStartPos = player.position.clone();
-    laserStartPos.y = -30; // 🚀 Set laser to the food height
+    laserStartPos.y = foodHeight;
+    // Laser direkt vor die Spielfigur setzen (damit er "aus dem PNG" austritt)
+    // Annahme: PNG/Spielfigur hat etwa Größe player.size, also Offset in Schussrichtung
+    const spawnOffset = (player.size * 0.5) + (laserLength * 0.5); // vor die Figur
+    // Richtung wird unten berechnet, daher erst mal nur Position setzen
     laser.position.copy(laserStartPos);
 
-    // ✅ Calculate direction towards the mouse
-    let direction = new THREE.Vector3().subVectors(mouseTarget, laserStartPos).normalize();
-    
-    // ✅ Set the laser rotation towards the direction
-    laser.lookAt(mouseTarget);
+    // Richtung: Von Spieler zu Zielpunkt (wo die Maus auf die Map zeigt)
+    let direction = new THREE.Vector3().subVectors(laserTarget, laserStartPos);
+    if (direction.lengthSq() === 0) direction.set(0, 0, 1);
+    else direction.normalize();
 
-    laser.userData = { direction, lifeTime: laserLifeTime, shooter: player };
+    // Zylinder exakt entlang der Richtung ausrichten (nur Quaternion, kein rotateX!)
+    laser.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+
+    // Laser direkt vor die Spielfigur setzen (aus dem PNG austreten lassen)
+    laser.position.add(direction.clone().multiplyScalar(spawnOffset));
+
+    // Die Bewegungsrichtung exakt speichern (wichtig für updateLasers!)
+    laser.userData = { direction: direction.clone(), lifeTime: laserLifeTime, shooter: player };
+    laser.active = true;
+    if (!player.userData.lasers) player.userData.lasers = [];
+    player.userData.lasers.push(laser);
     scene.add(laser);
     playerLaserList.push(laser);
 }

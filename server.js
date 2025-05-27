@@ -2,13 +2,16 @@
 import dotenv from "dotenv";
 import express from "express";
 
+import colyseus from "colyseus";
+const { Server } = colyseus;
+
 
 import http from "http";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import pkg from "colyseus";
-const { Server } = pkg;
+
 
 import { monitor } from "@colyseus/monitor";
 import { MyRoom } from "./rooms/MyRoom.js";
@@ -38,5 +41,5 @@ const gameServer = new Server({ server });
 gameServer.define("my_room", MyRoom);
 
 // Starte den Server
-const PORT = process.env.PORT || 5000;
+const PORT = 5001; // changed from 5000 to 5001
 server.listen(PORT, () => console.log(`🚀 Colyseus Server running on http://localhost:${PORT}`));

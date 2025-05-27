@@ -1,3 +1,17 @@
+#event-compass {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%) rotate(0deg);
+    width: 32px;
+    height: 32px;
+    z-index: 200;
+    pointer-events: none;
+    opacity: 0.85;
+    display: none;
+    background: url('data:image/svg+xml;utf8,<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon points="16,2 26,28 16,22 6,28" fill="%23b266ff" fill-opacity="0.85"/></svg>') no-repeat center center;
+    background-size: contain;
+}
 @font-face {
     font-family: 'Lazer84';
     src: url('fonts/Lazer84.ttf') format('truetype');
@@ -102,4 +116,19 @@ canvas {
 @font-face {
     font-family: 'OldComputer';
     src: url('fonts/old_computer.ttf') format('truetype');
+}
+
+/* Event Indicator Styling */
+/* Ensure only one 'BOSS FIGHT' indicator is styled */
+#event-indicator {
+  font-family: 'Lazer84', sans-serif;
+  font-size: 48px;
+  color: #00ff00;
+  font-weight: 400;
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: none;
 }
